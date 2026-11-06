@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # Color.value / withOpacity sont conservés pour rester compatibles avec toutes les versions de Flutter ≥ 3.22.
+    deprecated_member_use: ignore
+  exclude:
+    - backend/**
+    - tool/**
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_final_locals: true
+    avoid_print: true
+    unawaited_futures: false
