@@ -8,6 +8,7 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/map/map_style_builder.dart';
+import 'package:strasse/features/settings/settings_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Épingle affichée sur la carte (destination, étape, résultat de recherche…).
