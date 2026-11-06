@@ -76,7 +76,7 @@ class AppTheme {
       scheme = dynamicScheme;
       bg = scheme.surface;
     } else {
-      var brand = ColorScheme.fromSeed(seedColor: seed, brightness: brightness, secondary: s.secondary);
+      var brand = ColorScheme.fromSeed(seedColor: seed, brightness: brightness).copyWith(secondary: s.secondary);
       // Garantit un contraste suffisant pour la couleur principale choisie par l'utilisateur.
       bg = dark ? const Color(0xFF111416) : Colors.white;
       brand = brand.copyWith(
@@ -101,7 +101,7 @@ class AppTheme {
     // Transitions natives : glissement latéral avec retour par geste sur iOS, transition Material sur Android.
     const PageTransitionsBuilder noAnim = _NoTransitions();
     final androidBuilder = s.reduceAnimations ? noAnim : const ZoomPageTransitionsBuilder();
-    final iosBuilder = s.reduceAnimations ? noAnim : const CupertinoPageTransitionsBuilder();
+    final iosBuilder = s.reduceAnimations ? noAnim : const _StrasseCupertinoTransitions();
 
     return base.copyWith(
       extensions: [
@@ -170,4 +170,25 @@ class _NoTransitions extends PageTransitionsBuilder {
   const _NoTransitions();
   @override
   Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) => child;
+}
+
+/// Transition iOS native, sans dépendre d'un builder non exporté par toutes les versions Flutter.
+class _StrasseCupertinoTransitions extends PageTransitionsBuilder {
+  const _StrasseCupertinoTransitions();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return CupertinoPageTransition(
+      primaryRouteAnimation: animation,
+      secondaryRouteAnimation: secondaryAnimation,
+      linearTransition: false,
+      child: child,
+    );
+  }
 }
