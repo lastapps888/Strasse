@@ -7,6 +7,7 @@ import 'package:strasse/app/shell.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/features/profile/onboarding_page.dart';
+import 'package:strasse/features/settings/settings_model.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
