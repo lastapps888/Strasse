@@ -76,7 +76,7 @@ class AppTheme {
       scheme = dynamicScheme;
       bg = scheme.surface;
     } else {
-      var brand = ColorScheme.fromSeed(seed: seed, brightness: brightness, secondary: s.secondary);
+      var brand = ColorScheme.fromSeed(seedColor: seed, brightness: brightness, secondary: s.secondary);
       // Garantit un contraste suffisant pour la couleur principale choisie par l'utilisateur.
       bg = dark ? const Color(0xFF111416) : Colors.white;
       brand = brand.copyWith(
