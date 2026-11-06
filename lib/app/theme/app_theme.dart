@@ -87,7 +87,6 @@ class AppTheme {
       scheme = brand;
     }
 
-    final duration = s.reduceAnimations ? Duration.zero : const Duration(milliseconds: 220);
     final density = s.compactUi ? VisualDensity.compact : VisualDensity.standard;
 
     final base = ThemeData(
