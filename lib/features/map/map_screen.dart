@@ -17,6 +17,7 @@ import 'package:strasse/features/routing/route_preview_page.dart';
 import 'package:strasse/features/search/search_page.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 import 'package:strasse/features/traffic/report_sheet.dart';
+import 'package:strasse/features/traffic/traffic_controller.dart';
 
 enum FollowMode { off, follow, heading }
 
