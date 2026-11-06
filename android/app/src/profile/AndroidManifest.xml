@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Le moteur Flutter a besoin d'Internet pour le débogage (hot reload) ; la release n'en dépend pas. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+</manifest>
