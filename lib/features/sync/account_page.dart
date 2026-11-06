@@ -4,6 +4,7 @@ import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
+import 'package:strasse/features/sync/auth_controller.dart';
 
 /// Compte facultatif : connexion, création, synchronisation, déconnexion et suppression du compte serveur.
 class AccountPage extends ConsumerStatefulWidget {
