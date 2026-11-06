@@ -38,6 +38,7 @@ class Failure implements Exception {
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
         return const Failure(FailureKind.timeout, 'Le serveur met trop de temps à répondre. Réessayez.', code: 'timeout');
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.connectionError:
         return Failure.offline();
       case DioExceptionType.cancel:
