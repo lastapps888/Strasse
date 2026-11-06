@@ -21,8 +21,12 @@ workflows:
             flutter create --org fr.strasse --project-name strasse --platforms=android .
           fi
 
-          if [ ! -d ios ]; then
-            flutter create --org fr.strasse --project-name strasse --platforms=ios .
+          # Flutter needs the Xcode project, not merely an ios/ directory.
+          # The repository may contain iOS assets/configuration without the
+          # generated Runner.xcodeproj; recreate the native iOS scaffold then
+          # reapply Strasse-specific settings in the next step.
+          if [ ! -f ios/Runner.xcodeproj/project.pbxproj ]; then
+            flutter create --org fr.strasse --project-name strasse --platforms=ios --overwrite .
           fi
 
       - name: Configure native permissions and app names
