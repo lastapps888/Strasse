@@ -12,6 +12,7 @@ import 'package:strasse/features/map/strasse_map.dart';
 import 'package:strasse/features/navigation/navigation_page.dart';
 import 'package:strasse/features/routing/route_options_sheet.dart';
 import 'package:strasse/features/search/search_page.dart';
+import 'package:strasse/features/traffic/traffic_controller.dart';
 
 /// Aperçu des itinéraires : départ, étapes, arrivée, mode, alternatives comparées sur la carte, options, puis démarrage.
 class RoutePreviewPage extends ConsumerStatefulWidget {
