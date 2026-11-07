@@ -6,6 +6,7 @@ Nous avons créé une application de navigation open-source, 100% gratuite, sans
 
 ## Mise en place
 Pour le moment, nous avons intégré un système de multiple fournisseur de donnnées. Nous devons pour le moment renseigner les adresses nous-mêmes, ce qui n'est pas très pratique. Dans les prochaines betas, nous veilleront à améliorer cela.
+
 STRASSE_TILES_URL : https://tiles.openfreemap.org/planet
 
 STRASSE_GLYPHS_URL : https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf
