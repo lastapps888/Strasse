@@ -21,12 +21,21 @@ workflows:
             flutter create --org fr.strasse --project-name strasse --platforms=android .
           fi
 
-          # Flutter needs the Xcode project, not merely an ios/ directory.
-          # The repository may contain iOS assets/configuration without the
-          # generated Runner.xcodeproj; recreate the native iOS scaffold then
-          # reapply Strasse-specific settings in the next step.
+          # Generate the iOS host project in a temporary Flutter app.
+          # Never run flutter create --overwrite at the repository root:
+          # it can replace project-owned files and is not needed to create Runner.xcodeproj.
           if [ ! -f ios/Runner.xcodeproj/project.pbxproj ]; then
-            flutter create --org fr.strasse --project-name strasse --platforms=ios --overwrite .
+            temp_dir="$(mktemp -d)"
+            if [ -f ios/Runner/AppDelegate.swift ]; then
+              cp ios/Runner/AppDelegate.swift "$temp_dir/AppDelegate.swift"
+            fi
+            flutter create --org fr.strasse --project-name strasse --platforms=ios "$temp_dir/strasse"
+            rm -rf ios
+            cp -R "$temp_dir/strasse/ios" ios
+            if [ -f "$temp_dir/AppDelegate.swift" ]; then
+              cp "$temp_dir/AppDelegate.swift" ios/Runner/AppDelegate.swift
+            fi
+            rm -rf "$temp_dir"
           fi
 
       - name: Configure native permissions and app names
