@@ -42,6 +42,12 @@ STRASSE_API_URL : pas d'URL disponible pour le moment (à venir).
 Inspirée de la maquette `docs/design/reference_rendu.jpg` : vert Strasse, boutons en pilule, barre d'onglets plate, navigation sombre.
 **Material You** : sur Android 12+, les couleurs du fond d'écran sont reprises (`dynamic_color`) ; sur iOS et les Android plus anciens, la palette est calculée à partir du vert Strasse. Réglable dans Réglages > Apparence. Les transitions de pages sont natives (Cupertino sur iOS).
 
+## Installation
+Vous pouvez compiler vous même l'IPA ou l'APK en suivant le guide [INSTALLATION.md](INSTALLATION.md) ou installer directement depuis les releases : https://github.com/lastapps888/Strasse/releases
+
+ANDROID : Téléchargez le fichier APK, puis ouvrez-le. Autorisez l'installtion depuis les sources inconnues si besoin dans les paramètres. Une popup d'installation s'ouvrira. Cliquez sur "Installer" pour installer Strasse. Une publication sur le Play Store et le Galaxy Store est prévue dans le futur.
+iOS (iPhone) : Téléchargez le fichier IPA. Pour l'installer vous aurez besoin d'un compte développeur Apple et installer un magasin tiers comme SideStore (https://github.com/SideStore/SideStore) ou AltStore (https://github.com/altstoreio/Altstore). Suivez les instructions de SideStore ou Altstore pour configurer le magasin. Une fois que c'est fait, ouvrez-le, activez le VPN Loopback (LocalDevVPN par exemple), et cliquez sur le + puis "installer à partir d'un fichier IPA". Sélectionnez le fichier Strasse.ipa et l'installation devrait marcher.
+
 ## Démarrage rapide
 
 1. Installer Flutter (≥ 3.27). Voir [INSTALLATION.md](INSTALLATION.md).
