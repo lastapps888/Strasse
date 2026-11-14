@@ -1,7 +1,7 @@
 # Strasse
 
 <p align="center">
-  <img src="assets/app_icons/clair.png)" alt="Strasse logo" width="220">
+  <img src="assets/app_icons/clair.png" alt="Strasse logo" width="220">
 </p>
 
 <p align="center">
