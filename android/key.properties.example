@@ -1,0 +1,5 @@
+# Copiez ce fichier en key.properties (ignoré par git) puis renseignez votre clé de signature.
+storePassword=MOT_DE_PASSE_DU_KEYSTORE
+keyPassword=MOT_DE_PASSE_DE_LA_CLE
+keyAlias=strasse
+storeFile=../strasse-release.jks
