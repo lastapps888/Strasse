@@ -187,8 +187,7 @@ A few useful files if you want to explore the project:
 - [Architecture](ARCHITECTURE.md)
 - [Backend API](API.md)
 - [Backend documentation](backend/README.md)
-- [Known limitations](docs/LIMITES.md)
-- [Development progress](docs/PROGRESS.md)
+- [Known limitations](docs/LIMITS.md)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
