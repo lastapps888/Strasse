@@ -10,10 +10,10 @@
 
 <p align="center">
   <a href="https://github.com/lastapps888/Strasse/releases/download/Strasse.apk">
-    <img src="https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download APK">
+    <img src="docs/screenshots/download_apk" width="24%" alt="Download APK">
   </a>
   <a href="https://github.com/lastapps888/Strasse/releases/download/Strasse.ipa">
-    <img src="https://img.shields.io/badge/Download-IPA-147EFB?style=for-the-badge&logo=apple&logoColor=white" alt="Download IPA">
+    <img src="docs/screenshots/Download_ipa" width="24%" alt="Download IPA">
   </a>
 </p>
 
@@ -185,8 +185,6 @@ A few useful files if you want to explore the project:
 - [Installation](INSTALLATION.md)
 - [Service configuration](CONFIGURATION.md)
 - [Architecture](ARCHITECTURE.md)
-- [Backend API](API.md)
-- [Backend documentation](backend/README.md)
 - [Known limitations](docs/LIMITS.md)
 - [Changelog](CHANGELOG.md)
 
