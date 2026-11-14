@@ -1,8 +1,8 @@
-# Journal des modifications
+# Changelog
 
-## 1.0.0 (version initiale, non compilée)
-- Application complète : carte, recherche, itinéraires (voiture, marche, vélo, transports), navigation vocale avec recalcul, favoris et collections, trajets, statistiques, trafic et signalements, compte et synchronisation facultatifs, assistant local, réglages et confidentialité.
-- Cartes hors connexion et calcul d'itinéraires sur l'appareil (réseau routier OSM).
-- Apparence inspirée de la maquette, Material You (Android 12+), icônes adaptatives et monochromes.
-- Backend Fastify/PostgreSQL/Redis, migrations, Docker.
-- Tests unitaires Dart (géo, routage hors connexion) et test de widget (logo).
+## 1.0.0 (initial version, uncompiled)
+- Full-featured application: map, search, routing (car, walking, cycling, public transport), voice-guided navigation with re-routing, favorites and collections, trip history, statistics, traffic and incident reporting, optional account and synchronization, local assistant, settings, and privacy controls.
+- Offline maps and on-device route calculation (based on the OSM road network).
+- Design inspired by the original mockups; supports Material You (Android 12+), with adaptive and monochrome icons.
+- Backend built with Fastify, PostgreSQL, and Redis; includes database migrations and Docker support.
+- Unit tests (Dart) for geolocation and offline routing; widget tests (logo).
