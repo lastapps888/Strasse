@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lastapps888/Strasse/releases">
+  <a href="https://github.com/lastapps888/Strasse/releases/download/Strasse.apk">
     <img src="https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download APK">
   </a>
-  <a href="https://github.com/lastapps888/Strasse/releases">
+  <a href="https://github.com/lastapps888/Strasse/releases/download/Strasse.ipa">
     <img src="https://img.shields.io/badge/Download-IPA-147EFB?style=for-the-badge&logo=apple&logoColor=white" alt="Download IPA">
   </a>
 </p>
@@ -38,10 +38,14 @@ The app is built with Flutter and Dart and is available for both Android and iOS
 Here are a few views of Strasse.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="24%" alt="Strasse home screen">
-  <img src="docs/screenshots/map.png" width="24%" alt="Strasse map">
-  <img src="docs/screenshots/navigation.png" width="24%" alt="Strasse navigation">
-  <img src="docs/screenshots/settings.png" width="24%" alt="Strasse settings">
+  <img src="docs/screenshots/home.jpeg" width="24%" alt="Strasse home screen">
+  <img src="docs/screenshots/map.jpeg" width="24%" alt="Strasse map">
+  <img src="docs/screenshots/3d.jpeg" width="24%" alt="Strasse 3D map">
+  <img src="docs/screenshots/trip.jpeg" width="24%" alt="Strasse trip planner">
+    <img src="docs/screenshots/saved.jpeg" width="24%" alt="Strasse saved trips ans maps">
+    <img src="docs/screenshots/music.jpeg" width="24%" alt="Strasse music">
+    <img src="docs/screenshots/assistant.jpeg" width="24%" alt="Strasse assistant">
+    <img src="docs/screenshots/settings.jpeg" width="24%" alt="Strasse settings">
 </p>
 
 ## Features
