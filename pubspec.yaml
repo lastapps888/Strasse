@@ -4,8 +4,8 @@ publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.6.0 <4.0.0"
-  flutter: ">=3.27.0"
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.32.0"
 
 dependencies:
   flutter:
@@ -39,6 +39,15 @@ dependencies:
   share_plus: ^10.0.2
   dynamic_color: ^1.7.0
   uuid: ^4.5.0
+  crypto: ^3.0.5
+
+  # Réservation (WebView intégrée), sélecteur de fichiers, musique
+  webview_flutter: ^4.10.0
+  file_picker: ^8.1.4
+  just_audio: ^0.9.42
+  just_audio_background: ^0.0.1-beta.13
+  audio_session: ^0.1.21
+  flutter_web_auth_2: ^4.1.0
   intl: any
 
 dev_dependencies:
@@ -51,3 +60,5 @@ flutter:
   generate: false
   assets:
     - assets/logo/png/
+    - assets/app_icons/
+    - assets/i18n/
