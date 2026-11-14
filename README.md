@@ -198,8 +198,24 @@ Please avoid committing private API keys, passwords or signing certificates.
 
 ## License
 
-Strasse currently has no open-source license. All rights remain with the project owner unless a license is added.
+Copyright (c) [2026] Lastapps888. All rights reserved.
 
+Public access to this source code is granted solely for the purposes of consultation,
+learning, and personal inspiration.
+
+Terms of Use:
+1. Non-commercial use only: Any commercial use—whether direct or indirect—of all or
+part of this code is strictly prohibited without prior written authorization.
+2. Partial reuse only: Copying the project in its entirety or in a substantial
+manner is prohibited. Only the reuse of limited excerpts or the general
+structure for a separate project is permitted.
+3. Mandatory attribution: Any reuse, even partial, must clearly credit the
+original author (Lastapps888) and include a link to this repository.
+4. Mandatory notification: Before publishing or making available online any
+project that incorporates a portion of this code, you must notify the
+author at the following address: srohsed.barjo.projet@gmail.com.
+
+Any use that does not comply with these terms constitutes a copyright infringement.
 ---
 
 <p align="center">
