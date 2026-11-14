@@ -1,37 +1,36 @@
-# Guide simple : construire l'APK (Android) et l'IPA (iPhone)
+# Simple Guide: Building the APK (Android) and IPA (iPhone)
 
-Faites d'abord l'installation ([INSTALLATION.md](INSTALLATION.md)) et la configuration ([CONFIGURATION.md](CONFIGURATION.md)). Toutes les commandes se tapent dans un terminal, dans le dossier `strasse`.
+First, complete the installation ([INSTALLATION.md](INSTALLATION.md)) and configuration ([CONFIGURATION.md](CONFIGURATION.md)). All commands should be entered in a terminal from within the `strasse` directory.
 
-## A. Android — fichier APK
+## A. Android — APK file
 
-1. Préparer : `tool/setup_platforms.sh` (une seule fois), puis `cp config/env.example.json config/env.json` et remplissez vos adresses.
-2. Test rapide (APK signé avec la clé de test) :
-   ```bash
-   flutter build apk --release --dart-define-from-file=config/env.json
-   ```
-   Fichier obtenu : `build/app/outputs/flutter-apk/app-release.apk`. Copiez-le sur le téléphone et ouvrez-le (autorisez « sources inconnues »).
-3. Version à publier (clé personnelle) :
-   ```bash
-   keytool -genkey -v -keystore android/strasse-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias strasse
-   cp android/key.properties.example android/key.properties    # puis renseignez mots de passe et chemin (storeFile=../strasse-release.jks)
-   flutter build appbundle --release --dart-define-from-file=config/env.json   # .aab pour le Play Store
-   flutter build apk --release --split-per-abi --dart-define-from-file=config/env.json
-   ```
-   **Sauvegardez le fichier `.jks` et ses mots de passe** : sans eux, impossible de publier une mise à jour. Ne les partagez jamais.
+1. Prepare: Run `tool/setup_platforms.sh` (only once), then execute `cp config/env.example.json config/env.json` and fill in your addresses.
+2. Quick test (APK signed with the test key):
+```bash
+flutter build apk --release --dart-define-from-file=config/env.json
+```
+Resulting file: `build/app/outputs/flutter-apk/app-release.apk`. Copy it to your phone and open it (ensure you allow "unknown sources").
+3. Version for publication (using your own personal key):
+```bash
+keytool -genkey -v -keystore android/strasse-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias strasse
+cp android/key.properties.example android/key.properties    # then enter your passwords and the path (storeFile=../strasse-release.jks)
+flutter build appbundle --release --dart-define-from-file=config/env.json   # .aab for the Play Store
+flutter build apk --release --split-per-abi --dart-define-from-file=config/env.json
+```
+**Back up the `.jks` file and its passwords**: without them, it will be impossible to publish updates. Never share them.
 
-## B. iPhone — fichier IPA (il faut un Mac)
+## B. iPhone — IPA file (requires a Mac)
 
-1. Installer Xcode (App Store) et CocoaPods (`sudo gem install cocoapods`).
-2. `tool/setup_platforms.sh`, puis `cd ios && pod install && cd ..`.
-3. Ouvrir `ios/Runner.xcworkspace` dans Xcode → cible **Runner** → *Signing & Capabilities* : choisir votre **Team** (un compte Apple gratuit suffit pour tester sur votre iPhone ; le compte développeur payant est nécessaire pour l'App Store/TestFlight). Changer le *Bundle Identifier* s'il est déjà pris.
-4. Construire :
-   ```bash
-   flutter build ipa --release --dart-define-from-file=config/env.json
-   ```
-   Fichier obtenu : `build/ios/ipa/*.ipa`. Envoi vers l'App Store/TestFlight : application « Transporter » d'Apple, ou `xcrun altool`.
-   Pour un simple test : `flutter run --release --dart-define-from-file=config/env.json` avec l'iPhone branché.
+1. Install Xcode (via the App Store) and CocoaPods (`sudo gem install cocoapods`). 2. Run `tool/setup_platforms.sh`, then `cd ios && pod install && cd ..`.
+3. Open `ios/Runner.xcworkspace` in Xcode → select the **Runner** target → *Signing & Capabilities*: choose your **Team** (a free Apple account is sufficient for testing on your iPhone; a paid developer account is required for the App Store/TestFlight). Change the *Bundle Identifier* if it is already in use.
+4. Build:
+```bash
+flutter build ipa --release --dart-define-from-file=config/env.json
+```
+Resulting file: `build/ios/ipa/*.ipa`. To upload to the App Store/TestFlight, use Apple’s "Transporter" app or `xcrun altool`. 
+For a quick test: run `flutter run --release --dart-define-from-file=config/env.json` with your iPhone connected.
 
-## En cas de problème
-- « flutter.sdk non défini » : lancez `flutter pub get`.
-- Erreurs de compilation : ce code n'a pas pu être compilé par son auteur ; copiez le message d'erreur complet, il indique le fichier et la ligne à corriger.
-- Carte vide : `STRASSE_TILES_URL` / `STRASSE_GLYPHS_URL` non renseignés ou injoignables.
+## Troubleshooting
+- "flutter.sdk not defined": run `flutter pub get`.
+- Compilation errors: this code could not be compiled by its author; copy the full error message, as it will indicate the specific file and line that need to be fixed.
+- Empty map: `STRASSE_TILES_URL` / `STRASSE_GLYPHS_URL` are either not set or unreachable.
