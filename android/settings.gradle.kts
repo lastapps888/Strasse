@@ -18,8 +18,11 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.11.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // AGP 9.3.1 : version des gabarits de Flutter 3.50 (minimum accepté : 9.1.1).
+    id("com.android.application") version "9.3.1" apply false
+    // Kotlin 2.4.10 : même version que celle des gabarits Flutter (et donc que celle annoncée par Codemagic).
+    // Elle sert aux plugins qui appliquent encore le Kotlin Gradle Plugin (voir android.builtInKotlin dans gradle.properties).
+    id("org.jetbrains.kotlin.android") version "2.4.10" apply false
 }
 
 include(":app")
