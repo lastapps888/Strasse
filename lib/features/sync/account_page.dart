@@ -5,6 +5,8 @@ import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
+import 'package:flutter/services.dart';
+import 'package:strasse/data/providers/strasse_cloud_backend.dart';
 import 'package:strasse/features/sync/auth_controller.dart';
 
 /// Compte facultatif : connexion, création, synchronisation, déconnexion et suppression du compte serveur.
@@ -43,6 +45,68 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     if (mounted && ref.read(authProvider).signedIn) _password.clear();
   }
 
+  Future<void> _showRecoveryKey(String key) async {
+    var saved = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Votre clé de récupération'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Notez cette clé et gardez-la en lieu sûr (gestionnaire de mots de passe, papier). Elle ne sera plus jamais affichée et Strasse ne peut pas la retrouver.'),
+              const SizedBox(height: 12),
+              SelectableText(key, style: const TextStyle(fontFamily: 'monospace', fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const SizedBox(height: 8),
+              TextButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: key)), icon: const Icon(Icons.copy_rounded), label: const Text('Copier')),
+              const SizedBox(height: 8),
+              const Text('Si vous oubliez votre mot de passe ET perdez cette clé, vos données synchronisées seront perdues définitivement.', style: TextStyle(fontWeight: FontWeight.w700)),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, value: saved, onChanged: (v) => setS(() => saved = v ?? false), title: const Text('J\'ai noté ma clé de récupération')),
+            ]),
+          ),
+          actions: [TextButton(onPressed: saved ? () => Navigator.of(ctx).pop() : null, child: const Text('Terminer'))],
+        ),
+      ),
+    );
+    if (mounted) ref.read(recoveryKeyProvider.notifier).state = null;
+  }
+
+  Future<void> _recoverDialog() async {
+    final email = TextEditingController(text: _email.text.trim());
+    final key = TextEditingController();
+    final pw = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mot de passe oublié'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Saisissez votre e-mail, la clé de récupération notée à l\'inscription et un nouveau mot de passe.'),
+            const SizedBox(height: 12),
+            TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(labelText: tr('Adresse e-mail'))),
+            TextField(controller: key, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: tr('Clé de récupération'))),
+            TextField(controller: pw, obscureText: true, decoration: InputDecoration(labelText: tr('Nouveau mot de passe'), helperText: tr('10 caractères minimum'))),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Réinitialiser')),
+        ],
+      ),
+    );
+    final e = email.text.trim(), k = key.text, p = pw.text;
+    email.dispose();
+    key.dispose();
+    pw.dispose();
+    if (ok != true || !mounted) return;
+    if (p.length < 10) {
+      showMessage(context, 'Le nouveau mot de passe doit compter au moins 10 caractères.');
+      return;
+    }
+    await ref.read(authProvider.notifier).recover(e, k, p);
+  }
+
   Future<void> _resetPassword() async {
     final api = ref.read(strasseApiProvider);
     final email = _email.text.trim();
@@ -63,6 +127,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     final auth = ref.watch(authProvider);
     final api = ref.watch(strasseApiProvider);
     final settings = ref.watch(settingsProvider);
+    ref.listen<String?>(recoveryKeyProvider, (_, key) {
+      if (key != null) _showRecoveryKey(key);
+    });
 
     return Scaffold(
       appBar: AppBar(title: const Text('Compte et synchronisation')),
@@ -71,8 +138,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
         children: [
           const InfoBanner(
             icon: Icons.info_outline_rounded,
-            message: 'Le compte est facultatif. Sans compte, tout reste sur cet appareil. Avec un compte, vos favoris, collections, voyages planifiés et préférences sont synchronisés '
-                'avec le backend choisi dans Réglages > Services (Supabase ou serveur Strasse). Votre historique de trajets n\'est jamais synchronisé.',
+            message: 'Le compte est facultatif. Sans compte, tout reste sur cet appareil. Avec un compte, vos favoris, collections, voyages planifiés et préférences sont synchronisés. '
+                'Avec le serveur Strasse hébergé, ils sont chiffrés sur votre appareil avant l\'envoi : le serveur ne peut pas les lire. Votre historique de trajets n\'est jamais synchronisé.',
           ),
           const SizedBox(height: 16),
           if (!api.configured)
@@ -118,6 +185,17 @@ class _AccountPageState extends ConsumerState<AccountPage> {
               validator: (v) => (v ?? '').length < (_register ? 10 : 1) ? (_register ? 'Au moins 10 caractères' : 'Saisissez votre mot de passe') : null,
               onFieldSubmitted: (_) => _submit(),
             ),
+            if (!_register && ref.read(strasseApiProvider) is StrasseCloudBackend)
+              Align(alignment: Alignment.centerRight, child: TextButton(onPressed: busy ? null : _recoverDialog, child: const Text('Mot de passe oublié ?'))),
+            if (_register && ref.read(strasseApiProvider) is StrasseCloudBackend)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: InfoBanner(
+                  icon: Icons.key_rounded,
+                  tone: BannerTone.warning,
+                  message: 'Vos données seront chiffrées de bout en bout. Une clé de récupération vous sera montrée une seule fois : sans elle, un mot de passe oublié signifie des données perdues, car personne (pas même Strasse) ne peut les déchiffrer.',
+                ),
+              ),
             if (!_register && ref.read(strasseApiProvider).supportsPasswordReset)
               Align(alignment: Alignment.centerRight, child: TextButton(onPressed: busy ? null : _resetPassword, child: const Text('Mot de passe oublié ?'))),
             const SizedBox(height: 20),

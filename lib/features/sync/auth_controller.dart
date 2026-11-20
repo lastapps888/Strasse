@@ -5,6 +5,7 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/core/storage/preferences_store.dart';
 import 'package:strasse/core/storage/secure_store.dart';
 import 'package:strasse/data/providers/account_backend.dart';
+import 'package:strasse/data/providers/strasse_cloud_backend.dart';
 import 'package:strasse/features/notifications/notifications_service.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 import 'package:strasse/features/sync/sync_service.dart';
@@ -52,6 +53,13 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> register(String email, String password) => _auth(() => api.register(email, password));
   Future<void> login(String email, String password) => _auth(() => api.login(email, password));
+
+  /// Mot de passe oublié : rouvre les données avec la clé de récupération et définit un nouveau mot de passe.
+  Future<void> recover(String email, String recoveryKey, String newPassword) {
+    final backend = api;
+    if (backend is! StrasseCloudBackend) return Future.value();
+    return _auth(() => backend.recover(email, recoveryKey, newPassword));
+  }
 
   Future<void> _auth(Future<String> Function() action) async {
     state = state.copyWith(busy: true, clearError: true);

@@ -85,6 +85,7 @@ class AppSettings {
     this.fuelPrice = 0,
     this.speedAlertEnabled = true,
     this.speedAlertSound = false,
+    this.speedCameraAlerts = true,
     this.speedAlertMarginKmh = 3,
     this.appIcon = 'clair',
     this.musicSource = '',
@@ -103,6 +104,7 @@ class AppSettings {
     this.showTourismSites = false,
     this.showTransit = false,
     this.showCycleways = true,
+    this.showSatellite = false,
     this.mapDensity = 1,
     this.showTrafficEvents = true,
     this.markerColor = 0xFFD32F2F,
@@ -175,6 +177,7 @@ class AppSettings {
 
   final bool speedAlertEnabled;
   final bool speedAlertSound;
+  final bool speedCameraAlerts;
 
   /// Dépassement (km/h) à partir duquel l'alerte se déclenche.
   final int speedAlertMarginKmh;
@@ -201,6 +204,7 @@ class AppSettings {
   final bool showTourismSites;
   final bool showTransit;
   final bool showCycleways;
+  final bool showSatellite;
 
   /// 0 = épuré, 1 = normal, 2 = détaillé.
   final int mapDensity;
@@ -270,6 +274,7 @@ class AppSettings {
     double? fuelPrice,
     bool? speedAlertEnabled,
     bool? speedAlertSound,
+    bool? speedCameraAlerts,
     int? speedAlertMarginKmh,
     String? appIcon,
     String? musicSource,
@@ -287,6 +292,7 @@ class AppSettings {
     bool? showTourismSites,
     bool? showTransit,
     bool? showCycleways,
+    bool? showSatellite,
     int? mapDensity,
     bool? showTrafficEvents,
     int? markerColor,
@@ -335,6 +341,7 @@ class AppSettings {
         fuelPrice: fuelPrice ?? this.fuelPrice,
         speedAlertEnabled: speedAlertEnabled ?? this.speedAlertEnabled,
         speedAlertSound: speedAlertSound ?? this.speedAlertSound,
+        speedCameraAlerts: speedCameraAlerts ?? this.speedCameraAlerts,
         speedAlertMarginKmh: speedAlertMarginKmh ?? this.speedAlertMarginKmh,
         appIcon: appIcon ?? this.appIcon,
         musicSource: musicSource ?? this.musicSource,
@@ -352,6 +359,7 @@ class AppSettings {
         showTourismSites: showTourismSites ?? this.showTourismSites,
         showTransit: showTransit ?? this.showTransit,
         showCycleways: showCycleways ?? this.showCycleways,
+        showSatellite: showSatellite ?? this.showSatellite,
         mapDensity: mapDensity ?? this.mapDensity,
         showTrafficEvents: showTrafficEvents ?? this.showTrafficEvents,
         markerColor: markerColor ?? this.markerColor,
@@ -400,6 +408,7 @@ class AppSettings {
         'fuelPrice': fuelPrice,
         'speedAlertEnabled': speedAlertEnabled,
         'speedAlertSound': speedAlertSound,
+        'speedCameraAlerts': speedCameraAlerts,
         'speedAlertMarginKmh': speedAlertMarginKmh,
         'appIcon': appIcon,
         'musicSource': musicSource,
@@ -417,6 +426,7 @@ class AppSettings {
         'showTourismSites': showTourismSites,
         'showTransit': showTransit,
         'showCycleways': showCycleways,
+        'showSatellite': showSatellite,
         'mapDensity': mapDensity,
         'showTrafficEvents': showTrafficEvents,
         'markerColor': markerColor,
@@ -527,6 +537,7 @@ class AppSettings {
       fuelPrice: dbl('fuelPrice', d.fuelPrice).clamp(0.0, 10.0),
       speedAlertEnabled: b('speedAlertEnabled', d.speedAlertEnabled),
       speedAlertSound: b('speedAlertSound', d.speedAlertSound),
+      speedCameraAlerts: b('speedCameraAlerts', d.speedCameraAlerts),
       speedAlertMarginKmh: i('speedAlertMarginKmh', d.speedAlertMarginKmh).clamp(1, 30),
       appIcon: (j['appIcon'] as String?) ?? d.appIcon,
       musicSource: (j['musicSource'] as String?) ?? d.musicSource,
@@ -544,6 +555,7 @@ class AppSettings {
       showTourismSites: b('showTourismSites', d.showTourismSites),
       showTransit: b('showTransit', d.showTransit),
       showCycleways: b('showCycleways', d.showCycleways),
+      showSatellite: b('showSatellite', d.showSatellite),
       mapDensity: i('mapDensity', d.mapDensity).clamp(0, 2),
       showTrafficEvents: b('showTrafficEvents', d.showTrafficEvents),
       markerColor: i('markerColor', d.markerColor),

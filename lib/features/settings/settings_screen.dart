@@ -18,10 +18,25 @@ import 'package:strasse/features/settings/language_page.dart';
 import 'package:strasse/features/settings/settings_pages.dart';
 import 'package:strasse/features/settings/vehicle_settings_page.dart';
 import 'package:strasse/features/sync/account_page.dart';
+import 'package:strasse/features/updates/update_controller.dart';
+import 'package:strasse/features/updates/update_page.dart';
 
-/// Onglet Réglages : point d'entrée de toutes les sections.
-class SettingsScreen extends ConsumerWidget {
+/// Navigateur propre à l'onglet Réglages : les sous-menus s'ouvrent dans l'onglet, la barre d'onglets reste donc visible.
+final GlobalKey<NavigatorState> settingsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'settings-nav');
+
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+        key: settingsNavigatorKey,
+        onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => const SettingsHome()),
+      );
+}
+
+/// Liste racine des Réglages : point d'entrée de toutes les sections.
+class SettingsHome extends ConsumerWidget {
+  const SettingsHome({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,6 +44,7 @@ class SettingsScreen extends ConsumerWidget {
     final auth = ref.watch(authProvider);
     final regions = ref.watch(offlineManagerProvider);
     final padding = MediaQuery.paddingOf(context);
+    final update = ref.watch(updateProvider);
 
     void open(Widget page) => pushPage(context, page, reduce: s.reduceAnimations);
 
@@ -69,7 +85,13 @@ class SettingsScreen extends ConsumerWidget {
           tile(Icons.privacy_tip_outlined, 'Confidentialité et données', 'Historique, données envoyées, effacement', const PrivacyPage()),
           tile(Icons.dns_outlined, 'Services', 'Serveurs de cartes, itinéraires, recherche…', const ServicesPage()),
           tile(Icons.feedback_outlined, 'Envoyer un retour', 'Écrire à l\'équipe du projet', const FeedbackPage()),
-          link(Icons.system_update_outlined, 'Mise à jour', 'Versions publiées sur GitHub', AppConfig.releasesUrl),
+          ListTile(
+            leading: Badge(isLabelVisible: update.showBadge, smallSize: 10, child: const IconBadge(icon: Icons.system_update_outlined)),
+            title: const Text('Mise à jour'),
+            subtitle: Text(update.available ? 'Version ${update.release!.version} disponible' : 'Versions publiées sur GitHub'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => open(const UpdatePage()),
+          ),
           link(Icons.favorite_border_rounded, 'Soutenir le projet', 'Le dépôt GitHub de Strasse', AppConfig.repoUrl),
           tile(Icons.info_outline_rounded, 'À propos', 'Version, crédits, licences', const AboutPage()),
         ],

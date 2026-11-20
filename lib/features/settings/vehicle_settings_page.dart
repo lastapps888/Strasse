@@ -115,6 +115,12 @@ class VehicleSettingsPage extends ConsumerWidget {
           value: s.speedAlertEnabled,
           onChanged: (v) => _set(ref, (x) => x.copyWith(speedAlertEnabled: v)),
         ),
+        SwitchRow(
+          title: 'Alertes de contrôle de vitesse',
+          subtitle: 'Selon la loi du pays : en France, uniquement des « zones de danger » ; en Allemagne, Suisse et Autriche, aucune alerte. Données OpenStreetMap, non vérifiées.',
+          value: s.speedCameraAlerts,
+          onChanged: (v) => _set(ref, (x) => x.copyWith(speedCameraAlerts: v)),
+        ),
         if (s.speedAlertEnabled) ...[
           SwitchRow(title: 'Bip sonore', subtitle: 'Un court signal, au plus une fois toutes les 30 secondes.', value: s.speedAlertSound, onChanged: (v) => _set(ref, (x) => x.copyWith(speedAlertSound: v))),
           _slider(context, 'Marge avant alerte', s.speedAlertMarginKmh.toDouble(), 0, 15, 'km/h', (v) => _set(ref, (x) => x.copyWith(speedAlertMarginKmh: v.round())), decimals: 0),

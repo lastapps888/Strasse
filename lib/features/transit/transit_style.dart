@@ -69,7 +69,12 @@ IconData transitModeIcon(String mode) {
   }
 }
 
-Color _parse(String hex) => Color(int.parse('FF${hex.substring(1)}', radix: 16));
+Color _parse(String hex) {
+  var h = hex.trim().replaceFirst('#', '');
+  if (h.length == 3) h = h.split('').map((c) => '$c$c').join();
+  final v = h.length == 6 ? int.tryParse(h, radix: 16) : null;
+  return v == null ? const Color(0xFF546E7A) : Color(0xFF000000 | v);
+}
 
 /// Ce que la couche « Transports » affiche pour une zone.
 class TransitOverlayData {
@@ -104,8 +109,18 @@ class TransitOverlay {
             return <TransitStop>[];
           })
         : Future.value(<TransitStop>[]);
-    final l = await lines;
+    var l = await lines;
     final s = await stops;
+    // Repli : si OpenStreetMap ne donne rien (serveur Overpass en panne, ligne non cartographiée), on dessine les
+    // lignes qui circulent d'après les données horaires (GTFS) du fournisseur de transports.
+    if (l.isEmpty && data.motis != null && span <= maxStopSpan * 3) {
+      try {
+        l = await data.motis!.linesIn(b, cancel: cancel);
+        if (l.isNotEmpty) error = null;
+      } catch (e) {
+        error ??= e;
+      }
+    }
     return TransitOverlayData(lines: l, stops: s, error: l.isEmpty && s.isEmpty ? error : null);
   }
 
