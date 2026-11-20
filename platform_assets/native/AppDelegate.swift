@@ -7,18 +7,22 @@ import MusicKit
 #endif
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     // Affichage des notifications (téléchargements terminés, navigation) quand l'app est au premier plan.
     UNUserNotificationCenter.current().delegate = self as UNUserNotificationCenterDelegate
-    GeneratedPluginRegistrant.register(with: self)
-    if let controller = window?.rootViewController as? FlutterViewController {
-      registerStrasseChannels(messenger: controller.binaryMessenger)
-    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // Cycle de vie UIScene (Flutter 3.38+) : le FlutterViewController n'existe pas encore dans didFinishLaunching.
+  // Plugins ET canaux natifs sont donc enregistrés ici, avec le messager du moteur implicite.
+  // (L'ancien accès via window?.rootViewController renvoyait nil : aucun canal n'était créé, le changement d'icône échouait.)
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    registerStrasseChannels(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - Canaux natifs

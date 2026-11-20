@@ -2,7 +2,15 @@ package fr.strasse.strasse
 
 import android.content.ComponentName
 import android.content.ContentUris
+import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.Signature
+import android.net.Uri
+import android.provider.Settings
+import androidx.core.content.FileProvider
+import java.io.File
+import java.security.MessageDigest
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -63,6 +71,68 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(messenger, "fr.strasse.strasse/update").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "canInstall" -> result.success(Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())
+                "openInstallSettings" -> {
+                    try {
+                        val i = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(i)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("settings", e.message ?: "Réglage indisponible.", null)
+                    }
+                }
+                // Vrai seulement si l'APK téléchargé est signé par la même clé que l'application installée.
+                "sameSigner" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null) result.error("invalid", "Chemin manquant.", null)
+                    else thread {
+                        val ok = try { sameSigner(path) } catch (e: Exception) { false }
+                        main.post { result.success(ok) }
+                    }
+                }
+                "install" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null) {
+                        result.error("invalid", "Chemin manquant.", null)
+                    } else {
+                        try {
+                            val file = File(path)
+                            val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+                            val i = Intent(Intent.ACTION_VIEW)
+                            i.setDataAndType(uri, "application/vnd.android.package-archive")
+                            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(i)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("install", e.message ?: "Installation impossible.", null)
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun sameSigner(apkPath: String): Boolean {
+        fun digests(info: PackageInfo?): Set<String> {
+            if (info == null) return emptySet()
+            val sigs: Array<Signature>? = if (Build.VERSION.SDK_INT >= 28) {
+                val si = info.signingInfo
+                if (si == null) null else if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
+            } else {
+                @Suppress("DEPRECATION") info.signatures
+            }
+            val md = MessageDigest.getInstance("SHA-256")
+            return sigs?.map { md.digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }?.toSet() ?: emptySet()
+        }
+        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
+        val mine = digests(packageManager.getPackageInfo(packageName, flags))
+        val theirs = digests(packageManager.getPackageArchiveInfo(apkPath, flags))
+        return mine.isNotEmpty() && theirs.isNotEmpty() && mine.intersect(theirs).isNotEmpty()
     }
 
     private fun queryTracks(): List<Map<String, Any?>> {
