@@ -2,6 +2,8 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    // Plugin Kotlin classique : nécessaire tant que android.builtInKotlin=false (plugins non migrés, ex. flutter_tts).
+    // Passage au Kotlin intégré d'AGP 9 : voir android/gradle.properties.
     id("kotlin-android")
     // Le plugin Gradle de Flutter doit être appliqué après ceux d'Android et de Kotlin.
     id("dev.flutter.flutter-gradle-plugin")
@@ -15,7 +17,8 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "fr.strasse.strasse"
-    compileSdk = flutter.compileSdkVersion
+    // API 36 minimum : exigé par flutter_plugin_android_lifecycle et androidx récents.
+    compileSdk = maxOf(flutter.compileSdkVersion, 36)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -51,7 +54,6 @@ android {
 }
 
 kotlin {
-    // Kotlin 2.2 : l'ancien bloc `kotlinOptions` n'existe plus, on passe par compilerOptions.
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
@@ -62,7 +64,5 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
-
-// strasse-patched
