@@ -27,7 +27,7 @@ abstract class MusicBackend {
   Future<void> seek(int positionMs);
   Future<void> setVolume(double volume);
   Future<void> setShuffle(bool on);
-  Future<void> setRepeat(RepeatMode mode);
+  Future<void> setRepeat(PlayerRepeatMode mode);
 
   Future<MusicResults> search(String query);
   Future<List<MusicCollection>> library(CollectionKind kind);

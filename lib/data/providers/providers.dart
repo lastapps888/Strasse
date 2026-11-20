@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'dart:async';
 import 'dart:io';
 
@@ -39,6 +40,10 @@ import 'package:strasse/features/services/provider_resolver.dart';
 import 'package:strasse/features/services/provider_models.dart';
 import 'package:strasse/features/services/credentials_store.dart';
 import 'package:strasse/data/providers/poi_service.dart';
+import 'package:strasse/data/providers/place_info_service.dart';
+import 'package:strasse/data/providers/strasse_cloud_backend.dart';
+import 'package:strasse/data/providers/search_ranking.dart';
+import 'package:strasse/features/navigation/speed_cameras.dart';
 import 'package:strasse/data/providers/geocoding_service.dart';
 
 export 'package:strasse/features/location/location_service.dart' show locationControllerProvider;
@@ -92,6 +97,18 @@ final geocoderProvider = Provider<GeocodingService>((ref) {
   return GeocodingService.fromResolver(ref.watch(providerResolverProvider));
 });
 
+final placeInfoServiceProvider = Provider<PlaceInfoService>((ref) {
+  final cfg = ref.watch(appConfigProvider);
+  return PlaceInfoService(language: ref.watch(settingsProvider.select((s) => s.language)), userAgent: cfg.userAgent);
+});
+
+/// Photo + résumé Wikipédia/Commons d'un lieu nommé (clé : nom et coordonnées).
+final placeInfoProvider = FutureProvider.autoDispose.family<PlaceInfo, (String, double, double)>((ref, k) {
+  final token = CancelToken();
+  ref.onDispose(token.cancel);
+  return ref.watch(placeInfoServiceProvider).lookup(Place(id: 'info', name: k.$1, point: GeoPoint(k.$2, k.$3)), cancel: token);
+});
+
 final poiServiceProvider = Provider<PoiService>((ref) {
   return PoiService.fromResolver(ref.watch(providerResolverProvider));
 });
@@ -133,6 +150,12 @@ final transitDataProvider = Provider<TransitData>((ref) {
   );
 });
 
+final speedCameraClientProvider = Provider<SpeedCameraClient>((ref) {
+  final r = ref.watch(providerResolverProvider);
+  final endpoints = [for (final p in r.candidates(ServiceCategory.roadData)) ProviderResolver.normalize(r.urlOf(p))];
+  return SpeedCameraClient(endpoints, userAgent: r.config.userAgent);
+});
+
 /// Réseaux routiers téléchargés pour le calcul d'itinéraires hors connexion.
 final routingGraphStoreProvider = StateNotifierProvider<RoutingGraphStore, List<RoutingZone>>((ref) {
   return RoutingGraphStore(
@@ -145,8 +168,11 @@ final routingGraphStoreProvider = StateNotifierProvider<RoutingGraphStore, List<
 final strasseApiProvider = Provider<AccountBackend>((ref) {
   final r = ref.watch(providerResolverProvider);
   final secure = ref.watch(secureStoreProvider);
-  return _buildBackend(r, r.selected(ServiceCategory.account), secure);
+  return _buildBackend(r, r.selected(ServiceCategory.account), secure, onRecoveryKey: (k) => ref.read(recoveryKeyProvider.notifier).state = k);
 });
+
+/// Clé de récupération fraîchement créée, à montrer une seule fois (puis effacée de la mémoire).
+final recoveryKeyProvider = StateProvider<String?>((ref) => null);
 
 /// Backend des signalements. Il suit le compte lorsque les deux utilisent le même service ; sinon il lit le
 /// service choisi pour les signalements (lecture publique, écriture réservée aux comptes).
@@ -159,7 +185,10 @@ final reportsBackendProvider = Provider<AccountBackend>((ref) {
   return _buildBackend(r, reports, secure, fallback: account);
 });
 
-AccountBackend _buildBackend(ProviderResolver r, ServiceProvider p, SecureStore secure, {ServiceProvider? fallback}) {
+AccountBackend _buildBackend(ProviderResolver r, ServiceProvider p, SecureStore secure, {ServiceProvider? fallback, void Function(String)? onRecoveryKey}) {
+  if (p.adapter == 'strasse-cloud') {
+    return StrasseCloudBackend(baseUrl: ProviderResolver.normalize(r.urlOf(p)), secure: secure, onRecoveryKey: onRecoveryKey);
+  }
   if (p.adapter == 'supabase') {
     String field(String key) {
       final v = r.credential(p, key);
@@ -255,7 +284,11 @@ final workFavoriteProvider = FutureProvider<Favorite?>((ref) async {
   await ref.watch(favoritesProvider.future);
   return ref.watch(favoritesRepositoryProvider).byKind(FavoriteKind.work);
 });
-final recentPlacesProvider = FutureProvider<List<Place>>((ref) => ref.watch(placesRepositoryProvider).recents(limit: 12));
+final recentPlacesProvider = FutureProvider<List<Place>>((ref) async {
+  final list = await ref.watch(placesRepositoryProvider).recents(limit: 12);
+  SearchRanking.personalPlaces = list;
+  return list;
+});
 final searchQueriesProvider = FutureProvider<List<String>>((ref) => ref.watch(placesRepositoryProvider).queries());
 final historyProvider = FutureProvider.family<List<TripRecord>, String>((ref, q) => ref.watch(tripsRepositoryProvider).history(query: q));
 final frequentDestinationsProvider = FutureProvider<List<({TripRecord trip, int count})>>((ref) => ref.watch(tripsRepositoryProvider).frequentDestinations());

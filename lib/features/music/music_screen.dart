@@ -337,7 +337,7 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
                   if (caps.repeat)
                     IconButton(
                       tooltip: tr('Répéter'),
-                      icon: Icon(snap.repeat == RepeatMode.one ? Icons.repeat_one_rounded : Icons.repeat_rounded, color: snap.repeat == RepeatMode.off ? cs.onSurfaceVariant : cs.primary),
+                      icon: Icon(snap.repeat == PlayerRepeatMode.one ? Icons.repeat_one_rounded : Icons.repeat_rounded, color: snap.repeat == PlayerRepeatMode.off ? cs.onSurfaceVariant : cs.primary),
                       onPressed: _ctrl.cycleRepeat,
                     ),
                 ],

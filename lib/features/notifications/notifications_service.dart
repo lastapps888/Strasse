@@ -6,7 +6,8 @@ enum NotificationChannel {
   downloads('downloads', 'Téléchargements de cartes'),
   sync('sync', 'Synchronisation'),
   trips('trips', 'Trajets enregistrés'),
-  navigation('navigation_info', 'Informations de navigation');
+  navigation('navigation_info', 'Informations de navigation'),
+  updates('updates', 'Mises à jour de Strasse');
 
   const NotificationChannel(this.id, this.label);
   final String id;

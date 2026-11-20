@@ -1,3 +1,4 @@
+import 'package:strasse/core/config/app_config.dart';
 import 'package:strasse/features/services/provider_models.dart';
 
 /// Catalogue des fournisseurs intégrés. Le fournisseur « recommandé » de chaque catégorie est celui choisi par défaut :
@@ -423,13 +424,26 @@ class ProviderCatalog {
 
     // ------------------------------------------------------------------ Signalements
     ServiceProvider(
+      id: 'reports-strasse-cloud',
+      category: ServiceCategory.reports,
+      name: 'Serveur Strasse hébergé',
+      description: 'Signalements partagés entre utilisateurs de Strasse, sans aucune configuration. Lecture publique ; création et votes réservés aux comptes.',
+      baseUrl: AppConfig.strasseServerUrl,
+      adapter: 'strasse-cloud',
+      recommended: true,
+      license: 'Code du projet (server/cloudflare), hébergé sur Cloudflare Workers (offre gratuite).',
+      termsUrl: 'https://www.cloudflare.com/website-terms/',
+      limits: 'Un signalement contient seulement son type, sa position arrondie (~11 m) et sa durée de vie ; il n\'est lié à aucun compte lisible.',
+      features: ['Aucune configuration', 'Lecture publique', 'Expiration automatique'],
+    ),
+    ServiceProvider(
       id: 'reports-supabase',
       category: ServiceCategory.reports,
       name: 'Supabase (votre projet)',
       description: 'Signalements partagés via votre projet Supabase (fonctions SQL sécurisées dans supabase/). Lecture publique ; création et votes réservés aux comptes.',
       kind: ProviderKind.credentials,
       adapter: 'supabase',
-      recommended: true,
+      recommended: false,
       needsSetup: true,
       license: 'Supabase : plan gratuit avec quotas ; auto-hébergement possible (Apache-2.0).',
       termsUrl: 'https://supabase.com/terms',
@@ -454,13 +468,26 @@ class ProviderCatalog {
 
     // ------------------------------------------------------------------ Compte
     ServiceProvider(
+      id: 'account-strasse-cloud',
+      category: ServiceCategory.account,
+      name: 'Serveur Strasse hébergé (chiffré de bout en bout)',
+      description: 'Compte et synchronisation sans aucune configuration. Vos favoris, collections, trajets planifiés et préférences sont chiffrés sur votre appareil (AES-256-GCM) avant l\'envoi : le serveur ne peut pas les lire.',
+      baseUrl: AppConfig.strasseServerUrl,
+      adapter: 'strasse-cloud',
+      recommended: true,
+      license: 'Code du projet (server/cloudflare), hébergé sur Cloudflare Workers + D1 (offre gratuite).',
+      termsUrl: 'https://www.cloudflare.com/website-terms/',
+      limits: 'Le serveur ne connaît ni votre e-mail (seulement son condensé), ni votre mot de passe, ni vos données. Conséquence : en cas d\'oubli du mot de passe, seule la clé de récupération affichée à l\'inscription permet de retrouver les données ; sans elle, elles sont perdues définitivement.',
+      features: ['Aucune configuration', 'Chiffrement de bout en bout', 'Clé de récupération', 'Suppression du compte'],
+    ),
+    ServiceProvider(
       id: 'account-supabase',
       category: ServiceCategory.account,
       name: 'Supabase (votre projet)',
       description: 'Authentification et synchronisation (favoris, trajets, préférences) via Supabase, avec sécurité au niveau des lignes.',
       kind: ProviderKind.credentials,
       adapter: 'supabase',
-      recommended: true,
+      recommended: false,
       needsSetup: true,
       license: 'Supabase : plan gratuit avec quotas ; auto-hébergement possible.',
       termsUrl: 'https://supabase.com/terms',

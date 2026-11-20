@@ -19,12 +19,12 @@ enum MusicSource {
   }
 }
 
-enum RepeatMode {
+enum PlayerRepeatMode {
   off,
   all,
   one;
 
-  RepeatMode get next => RepeatMode.values[(index + 1) % RepeatMode.values.length];
+  PlayerRepeatMode get next => PlayerRepeatMode.values[(index + 1) % PlayerRepeatMode.values.length];
 }
 
 /// Commandes réellement supportées par une source : l'interface masque les autres.
@@ -105,7 +105,7 @@ class PlaybackSnapshot {
     this.durationMs = 0,
     this.volume,
     this.shuffle = false,
-    this.repeat = RepeatMode.off,
+    this.repeat = PlayerRepeatMode.off,
     this.deviceName,
   });
 
@@ -119,10 +119,10 @@ class PlaybackSnapshot {
   /// 0..1, null si la source ne le permet pas.
   final double? volume;
   final bool shuffle;
-  final RepeatMode repeat;
+  final PlayerRepeatMode repeat;
   final String? deviceName;
 
-  PlaybackSnapshot copyWith({MusicTrack? track, bool? playing, int? positionMs, int? durationMs, double? volume, bool? shuffle, RepeatMode? repeat, String? deviceName}) => PlaybackSnapshot(
+  PlaybackSnapshot copyWith({MusicTrack? track, bool? playing, int? positionMs, int? durationMs, double? volume, bool? shuffle, PlayerRepeatMode? repeat, String? deviceName}) => PlaybackSnapshot(
         track: track ?? this.track,
         playing: playing ?? this.playing,
         positionMs: positionMs ?? this.positionMs,

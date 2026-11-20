@@ -1,3 +1,4 @@
+import 'dart:ui' show FontFeature;
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -44,6 +45,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   double _bearing = 0;
   CancelToken? _transitCancel;
   bool _transitErrorShown = false;
+  bool _transitZoomShown = false;
   CancelToken? _poiCancel;
   bool _poiErrorShown = false;
 
@@ -60,6 +62,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _map = c;
     c.trackUserGestures = true;
     c.onUserMoved = () {
+      c.clearFollowCamera();
       if (_follow != FollowMode.off && mounted) setState(() => _follow = FollowMode.off);
     };
     c.onEventTapped = (e) {
@@ -73,6 +76,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _pushResults(ref.read(mapResultsProvider));
     final s = ref.read(settingsProvider);
     c.setUser(ref.read(locationControllerProvider).fix?.point, color: s.primary);
+    _idle();
   }
 
   void _pushUser(LocationState st) {
@@ -88,7 +92,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     c.setVehicle(ref.read(settingsProvider).vehicleIcon);
     c.setUser(fix.point, accuracy: fix.accuracyM, stale: stale, color: primary, bearing: fix.hasHeading ? fix.headingDeg : null);
     if (_follow != FollowMode.off) {
-      c.flyTo(fix.point, zoom: _follow == FollowMode.heading ? 16.5 : null, bearing: (_follow == FollowMode.heading && fix.hasHeading) ? fix.headingDeg : 0, ms: 600);
+      // Caméra pilotée image par image, comme le véhicule : pas de saccade à chaque mesure GPS.
+      c.setFollowCamera(zoom: _follow == FollowMode.heading ? 16.5 : 16, useHeading: _follow == FollowMode.heading && fix.hasHeading, fallbackBearing: 0);
+    } else {
+      c.clearFollowCamera();
     }
   }
 
@@ -107,6 +114,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final token = _transitCancel = CancelToken();
     final res = await TransitOverlay.load(ref.read(transitDataProvider), b, cancel: token);
     if (!mounted || token.isCancelled) return;
+    if (res.zoomHint) {
+      c.setExtraLines(const []);
+      c.setTransitStops(const []);
+      if (!_transitZoomShown) {
+        _transitZoomShown = true;
+        showMessage(context, 'Zoomez sur la carte pour afficher les lignes et arrêts de transport en commun.');
+      }
+      return;
+    }
+    _transitZoomShown = false;
     c.setExtraLines(TransitOverlay.polylines(res.lines));
     c.setTransitStops(TransitOverlay.pins(res.stops, (s) => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => StopSheet(stop: s))));
     if (res.error != null && !_transitErrorShown) {
@@ -301,7 +318,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final traffic = ref.watch(trafficProvider);
     final online = ref.watch(onlineProvider).valueOrNull ?? true;
     final padding = MediaQuery.paddingOf(context);
-    final navBarSpace = 76 + padding.bottom;
+    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape && MediaQuery.sizeOf(context).width >= 560;
+    // En paysage, la barre d'onglets est verticale : plus de bande réservée en bas.
+    final navBarSpace = (isLandscape ? 4 : 76) + padding.bottom;
     final sheetOpen = _selected != null;
 
     return Stack(
@@ -313,6 +332,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               if (_selected != null) _clearSelection();
             },
             onLongPress: _longPress,
+            onPlaceTap: (p) => _select(p, fly: false),
             onCameraIdle: _idle,
             attributionBottomPadding: sheetOpen ? 12 : navBarSpace - 4,
           ),
@@ -349,7 +369,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => const _LayersSheet())),
+                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5), builder: (_) => const _LayersSheet())),
                 ],
               ),
               if (!online)
@@ -374,10 +394,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ],
           ),
         ),
+        // Vitesse actuelle (GPS), affichée en permanence : valeur si la position est récente et assez précise, « — » sinon,
+        // et un état explicite si la localisation est refusée ou désactivée.
+        if (!(isLandscape && sheetOpen))
+          Positioned(
+            left: 16,
+            bottom: (sheetOpen && !isLandscape ? 330 : navBarSpace + 8),
+            child: _LiveSpeedChip(
+              speedMps: (loc.fix != null && DateTime.now().difference(loc.fix!.time).inSeconds <= 15 && loc.fix!.quality != FixQuality.poor) ? loc.fix!.speedMps : null,
+              unavailable: loc.status == LocationStatus.denied || loc.status == LocationStatus.deniedForever || loc.status == LocationStatus.serviceOff,
+              units: ref.watch(settingsProvider).units,
+            ),
+          ),
         // Boutons à droite.
         Positioned(
           right: 16,
-          bottom: (sheetOpen ? 330 : navBarSpace + 8),
+          bottom: (sheetOpen && !isLandscape ? 330 : navBarSpace + 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -390,10 +422,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     child: Transform.rotate(angle: -_bearing * 3.14159265 / 180, child: Icon(Icons.navigation_rounded, color: context.sc.danger)),
                   ),
                 ),
-              _RoundButton(icon: Icons.add_rounded, tooltip: tr('Zoom avant'), onTap: () => _map?.zoomBy(1)),
-              const SizedBox(height: 10),
-              _RoundButton(icon: Icons.remove_rounded, tooltip: tr('Zoom arrière'), onTap: () => _map?.zoomBy(-1)),
-              const SizedBox(height: 10),
+              // En paysage la hauteur manque : le zoom se fait au pincement (les boutons +/− reviennent en portrait).
+              if (!isLandscape) ...[
+                _RoundButton(icon: Icons.add_rounded, tooltip: tr('Zoom avant'), onTap: () => _map?.zoomBy(1)),
+                const SizedBox(height: 10),
+                _RoundButton(icon: Icons.remove_rounded, tooltip: tr('Zoom arrière'), onTap: () => _map?.zoomBy(-1)),
+                const SizedBox(height: 10),
+              ],
               _RoundButton(
                 tooltip: trn(switch (_follow) {
                   FollowMode.off => 'Me localiser',
@@ -432,7 +467,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         if (_selected != null)
           Positioned(
             left: 12,
-            right: 12,
+            right: isLandscape ? MediaQuery.sizeOf(context).width * 0.45 : 12,
             bottom: 12 + (MediaQuery.paddingOf(context).bottom > 0 ? 0 : 0),
             child: Material(
               color: context.sc.panel,
@@ -440,7 +475,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               borderRadius: BorderRadius.circular(24),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.55),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (isLandscape ? 0.8 : 0.55)),
                 child: SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 14),
@@ -488,42 +523,37 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
-/// Couches et style de carte.
-class _LayersSheet extends ConsumerWidget {
-  const _LayersSheet();
+/// Pastille de vitesse instantanée (valeur GPS, sans limite de vitesse : celle-ci n'apparaît qu'en navigation).
+class _LiveSpeedChip extends StatelessWidget {
+  const _LiveSpeedChip({required this.speedMps, required this.units, this.unavailable = false});
+
+  /// Null : pas de mesure fiable (position ancienne ou imprécise).
+  final double? speedMps;
+  final Units units;
+
+  /// Localisation refusée ou désactivée.
+  final bool unavailable;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final ctrl = ref.read(settingsProvider.notifier);
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionTitle('Style de carte'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  for (final m in MapStyleChoice.values)
-                    ChoiceChip(label: Text(m.label), selected: s.mapStyle == m, onSelected: (_) => ctrl.update((x) => x.copyWith(mapStyle: m))),
-                ],
-              ),
-            ),
-            const SectionTitle('Détails'),
-            SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
-            SwitchRow(title: 'Lieux d\'intérêt', value: s.showPoi, onChanged: (v) => ctrl.update((x) => x.copyWith(showPoi: v))),
-            SwitchRow(title: 'Transports en commun', subtitle: 'Lignes, arrêts et horaires ; zoomez pour les voir', value: s.showTransit, onChanged: (v) => ctrl.update((x) => x.copyWith(showTransit: v))),
-            SwitchRow(title: 'Hôtels', subtitle: 'Zoomez pour les afficher', value: s.showHotels, onChanged: (v) => ctrl.update((x) => x.copyWith(showHotels: v))),
-            SwitchRow(title: 'Restaurants', subtitle: 'Zoomez pour les afficher', value: s.showRestaurants, onChanged: (v) => ctrl.update((x) => x.copyWith(showRestaurants: v))),
-            SwitchRow(title: 'Sites touristiques', subtitle: 'Zoomez pour les afficher', value: s.showTourismSites, onChanged: (v) => ctrl.update((x) => x.copyWith(showTourismSites: v))),
-            SwitchRow(title: 'Pistes cyclables', value: s.showCycleways, onChanged: (v) => ctrl.update((x) => x.copyWith(showCycleways: v))),
-            SwitchRow(title: 'Signalements et incidents', subtitle: 'Nécessite un serveur Strasse', value: s.showTrafficEvents, onChanged: (v) => ctrl.update((x) => x.copyWith(showTrafficEvents: v))),
-          ],
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Sous 1,5 km/h, la vitesse GPS n'est que du bruit : on affiche 0.
+    final v = speedMps;
+    final shown = v == null ? null : (v * 3.6 < 1.5 ? 0.0 : v);
+    final label = unavailable ? tr('Localisation désactivée') : (shown == null ? '—' : formatSpeed(shown, units));
+    return Semantics(
+      label: tr('Vitesse actuelle'),
+      child: Material(
+        color: context.sc.panel,
+        elevation: 4,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(unavailable ? Icons.location_off_rounded : Icons.speed_rounded, size: 18, color: unavailable ? cs.error : cs.primary),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontWeight: FontWeight.w800, fontSize: unavailable ? 13 : 16, color: cs.onSurface, fontFeatures: const [FontFeature.tabularFigures()])),
+          ]),
         ),
       ),
     );

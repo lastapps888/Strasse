@@ -140,7 +140,7 @@ class AppleMusicBackend implements MusicBackend {
       positionMs: (m['positionMs'] as num?)?.toInt() ?? 0,
       durationMs: (m['durationMs'] as num?)?.toInt() ?? 0,
       shuffle: m['shuffle'] == true,
-      repeat: switch (m['repeat']) { 'all' => RepeatMode.all, 'one' => RepeatMode.one, _ => RepeatMode.off },
+      repeat: switch (m['repeat']) { 'all' => PlayerRepeatMode.all, 'one' => PlayerRepeatMode.one, _ => PlayerRepeatMode.off },
     );
   }
 
@@ -159,7 +159,7 @@ class AppleMusicBackend implements MusicBackend {
   @override
   Future<void> setShuffle(bool on) => _call<bool>('shuffle', {'on': on});
   @override
-  Future<void> setRepeat(RepeatMode mode) => _call<bool>('repeat', {'mode': mode.name});
+  Future<void> setRepeat(PlayerRepeatMode mode) => _call<bool>('repeat', {'mode': mode.name});
 
   @override
   void dispose() {}

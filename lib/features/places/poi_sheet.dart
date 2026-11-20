@@ -7,6 +7,7 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/places/booking_page.dart';
+import 'package:strasse/features/places/place_info_block.dart';
 import 'package:strasse/features/services/provider_models.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -45,6 +46,8 @@ class PoiSheet extends ConsumerWidget {
             if (poi.stars != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('${'★' * poi.stars!} classement officiel (pas une note d\'utilisateurs)', style: context.tt.bodySmall)),
             if (poi.distanceMeters != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('À ${formatDistance(poi.distanceMeters!, units)}', style: context.tt.bodySmall)),
             if (place.address != null) _line(context, Icons.place_outlined, place.address!),
+            const SizedBox(height: 8),
+            PlaceInfoBlock(place: place, showOwnPhoto: poi.photoUrl == null),
             if (place.openingHours != null) _line(context, Icons.schedule_rounded, 'Horaires OSM : ${place.openingHours}'),
             if (place.phone != null) _line(context, Icons.phone_outlined, place.phone!, onTap: () => launchUrl(Uri(scheme: 'tel', path: place.phone!.replaceAll(' ', '')))),
             const SizedBox(height: 12),

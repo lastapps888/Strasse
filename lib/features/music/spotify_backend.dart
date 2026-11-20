@@ -262,7 +262,7 @@ class SpotifyBackend implements MusicBackend {
       durationMs: item?.durationMs ?? 0,
       volume: dev['volume_percent'] is num ? (dev['volume_percent'] as num) / 100 : null,
       shuffle: m['shuffle_state'] == true,
-      repeat: switch (m['repeat_state']) { 'context' => RepeatMode.all, 'track' => RepeatMode.one, _ => RepeatMode.off },
+      repeat: switch (m['repeat_state']) { 'context' => PlayerRepeatMode.all, 'track' => PlayerRepeatMode.one, _ => PlayerRepeatMode.off },
       deviceName: dev['name'] as String?,
     );
   }
@@ -282,7 +282,7 @@ class SpotifyBackend implements MusicBackend {
   @override
   Future<void> setShuffle(bool on) => _command('PUT', '/me/player/shuffle', query: {'state': on});
   @override
-  Future<void> setRepeat(RepeatMode mode) => _command('PUT', '/me/player/repeat', query: {'state': switch (mode) { RepeatMode.off => 'off', RepeatMode.all => 'context', RepeatMode.one => 'track' }});
+  Future<void> setRepeat(PlayerRepeatMode mode) => _command('PUT', '/me/player/repeat', query: {'state': switch (mode) { PlayerRepeatMode.off => 'off', PlayerRepeatMode.all => 'context', PlayerRepeatMode.one => 'track' }});
 
   @override
   Future<void> playTrack(MusicTrack t, {List<MusicTrack> queue = const []}) {
@@ -367,8 +367,15 @@ class SpotifyBackend implements MusicBackend {
   Future<List<MusicTrack>> tracksOf(MusicCollection c) async {
     switch (c.kind) {
       case CollectionKind.playlist:
-        final r = await _call('GET', '/playlists/${c.id}/tracks', query: {'limit': 100});
-        return [for (final i in ((r.data as Map)['items'] as List?) ?? const []) if (i is Map && _track(i['track']) case final x?) x];
+        // Depuis février 2026, `/tracks` est devenu `/items` (et l'élément s'appelle `item`) ; en mode développement,
+        // seules les playlists dont l'utilisateur est propriétaire ou collaborateur renvoient leur contenu.
+        try {
+          final r = await _call('GET', '/playlists/${c.id}/items', query: {'limit': 100});
+          return [for (final i in ((r.data as Map)['items'] as List?) ?? const []) if (i is Map && _track(i['item'] ?? i['track']) case final x?) x];
+        } on MusicException catch (e) {
+          if (e.needsLogin) rethrow;
+          throw MusicException('Spotify ne donne pas accès au contenu de cette playlist (réservé aux playlists que vous possédez ou partagez). Vous pouvez tout de même la lancer.');
+        }
       case CollectionKind.album:
         final r = await _call('GET', '/albums/${c.id}/tracks', query: {'limit': 50});
         return [for (final t in ((r.data as Map)['items'] as List?) ?? const []) if (_track(t, album: c.title, art: c.artUrl) case final x?) x];

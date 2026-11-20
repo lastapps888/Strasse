@@ -12,6 +12,7 @@ import 'package:strasse/features/map/strasse_map.dart';
 import 'package:strasse/features/music/music_widgets.dart';
 import 'package:strasse/features/navigation/navigation_controller.dart';
 import 'package:strasse/features/navigation/speed_limits.dart';
+import 'package:strasse/features/navigation/speed_cameras.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 import 'package:strasse/features/traffic/report_sheet.dart';
 
@@ -42,6 +43,9 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
   double _speedKmh = 0;
   DateTime _lastBeep = DateTime.fromMillisecondsSinceEpoch(0);
   bool _wasOver = false;
+  SpeedCameraTracker? _cameras;
+  RouteOption? _camerasFor;
+  String? _cameraBeeped;
 
   @override
   void initState() {
@@ -53,6 +57,7 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _map?.clearFollowCamera();
     super.dispose();
   }
 
@@ -71,7 +76,10 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
     _map = c;
     c.trackUserGestures = true;
     c.onUserMoved = () {
-      if (!_free && mounted) setState(() => _free = true);
+      if (!_free && mounted) {
+        c.clearFollowCamera();
+        setState(() => _free = true);
+      }
     };
     _applyState(ref.read(navigationControllerProvider(_args)), force: true);
   }
@@ -91,6 +99,11 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
       _limits = SpeedLimitMap.empty;
       _loadLimits(st.route);
     }
+    if (!identical(_camerasFor, st.route)) {
+      _camerasFor = st.route;
+      _cameras = null;
+      _loadCameras(st.route);
+    }
     if (fix != null) {
       _speedKmh = _smoother.add(fix.speedMps);
       _checkSpeedAlert(st);
@@ -99,8 +112,10 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
       if (!_free) {
         final speedKmh = fix.speedMps * 3.6;
         final zoom = st.route.mode == TravelMode.car ? (speedKmh > 90 ? 15.2 : (speedKmh > 50 ? 16.0 : 17.0)) : 17.5;
-        final bearing = fix.hasHeading ? fix.headingDeg : (st.update?.bearing ?? 0);
-        c.flyTo(fix.point, zoom: zoom, bearing: bearing, tilt: s.simpleDrivingMode ? 0 : 45, ms: 900);
+        // La caméra suit le véhicule image par image (même interpolation que l'icône) : pas de saccades à 1 Hz.
+        c.setFollowCamera(zoom: zoom, tilt: s.simpleDrivingMode ? 0 : 45);
+      } else {
+        c.clearFollowCamera();
       }
     }
   }
@@ -112,6 +127,24 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
     } catch (_) {
       // Limites indisponibles : la vitesse reste affichée, sans limite.
     }
+  }
+
+  Future<void> _loadCameras(RouteOption route) async {
+    if (route.mode != TravelMode.car || !ref.read(settingsProvider).speedCameraAlerts) return;
+    // Aucune requête si le pays de départ n'autorise aucune alerte (pas de données inutiles envoyées à Overpass).
+    if (route.shape.isNotEmpty && CameraPolicies.at(route.shape.first) == CameraPolicy.none && CameraPolicies.at(route.shape.last) == CameraPolicy.none) return;
+    try {
+      final list = await ref.read(speedCameraClientProvider).along(route.shape);
+      if (mounted && identical(_camerasFor, route)) setState(() => _cameras = SpeedCameraTracker(list));
+    } catch (_) {
+      // Données indisponibles : aucune alerte, la navigation n'est pas affectée.
+    }
+  }
+
+  CameraWarning? _cameraWarning(NavState st) {
+    final t = _cameras;
+    if (t == null || st.route.mode != TravelMode.car || !ref.read(settingsProvider).speedCameraAlerts) return null;
+    return t.next(st.update?.alongM ?? 0, _speedKmh);
   }
 
   int? _currentLimit(NavState st) => _limits.at(st.update?.currentSegment ?? 0);
@@ -135,7 +168,8 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
   Widget _speedBubble(BuildContext context, AppSettings s, NavState st) {
     final limit = _currentLimit(st);
     final level = evaluateSpeed(speedKmh: _speedKmh, limitKmh: limit, marginKmh: s.speedAlertMarginKmh);
-    final over = s.speedAlertEnabled && level == SpeedLevel.over;
+    // Le badge devient rouge dès que la limite est dépassée, que l'alerte sonore soit activée ou non.
+    final over = level == SpeedLevel.over;
     final units = s.units;
     return Semantics(
       label: tr('Vitesse ${displaySpeed(_speedKmh, units)}${limit == null ? '' : ', limite ${displaySpeed(limit.toDouble(), units)}'}${over ? ', limite dépassée' : ''}'),
@@ -143,14 +177,21 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
         mainAxisSize: MainAxisSize.min,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeInOut,
             width: 64,
             height: 64,
             decoration: BoxDecoration(shape: BoxShape.circle, color: over ? const Color(0xFFB3261E) : _kPanelDark, border: Border.all(color: Colors.white24, width: 2)),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('${displaySpeed(_speedKmh, units)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1)),
+                // Le chiffre glisse d'une valeur à l'autre au lieu de sauter.
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: _speedKmh),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                  builder: (_, v, __) => Text('${displaySpeed(v, units)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1)),
+                ),
                 Text(units == Units.metric ? 'km/h' : 'mph', style: const TextStyle(color: Colors.white70, fontSize: 10)),
               ],
             ),
@@ -176,6 +217,7 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
   }
 
   Future<void> _overview() async {
+    _map?.clearFollowCamera();
     setState(() => _free = true);
     await _map?.fitPoints(widget.route.shape.isEmpty ? [widget.destination.point] : ref.read(navigationControllerProvider(_args)).route.shape, top: 200, bottom: 200);
   }
@@ -307,6 +349,8 @@ class _NavigationPageState extends ConsumerState<NavigationPage> with WidgetsBin
                   if (st.gpsLost) const Padding(padding: EdgeInsets.only(top: 8), child: InfoBanner(icon: Icons.gps_off_rounded, tone: BannerTone.error, message: 'Signal GPS perdu : position non mise à jour.')),
                   if (!st.gpsLost && st.message != null && st.phase != NavPhase.rerouting)
                     Padding(padding: const EdgeInsets.only(top: 8), child: InfoBanner(icon: st.imprecise ? Icons.gps_not_fixed_rounded : Icons.info_outline_rounded, tone: BannerTone.warning, message: st.message!)),
+                  if (_cameraWarning(st) case final w?)
+                    Padding(padding: const EdgeInsets.only(top: 8), child: InfoBanner(icon: Icons.speed_rounded, tone: BannerTone.warning, message: w.message)),
                   if (st.upcomingEvent != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),

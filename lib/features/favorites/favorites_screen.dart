@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:strasse/features/sharing/share_service.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/app/widgets/nav_helpers.dart';
@@ -92,9 +92,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         }
         final text = StringBuffer('${c.name}\n');
         for (final f in items) {
-          text.writeln('• ${f.name} — https://www.openstreetmap.org/?mlat=${f.point.lat}&mlon=${f.point.lon}#map=17/${f.point.lat}/${f.point.lon}');
+          text.writeln('• ${f.name} — ${ShareService.osmPointLink(f.point)}');
         }
-        await Share.share(text.toString(), subject: c.name);
+        if (context.mounted) await ShareService.shareText(context, text.toString(), subject: c.name);
       case 'delete':
         final ok = await confirm(context, title: 'Supprimer « ${c.name} » ?', message: 'Les lieux de cette collection sont conservés dans vos favoris.');
         if (ok) {

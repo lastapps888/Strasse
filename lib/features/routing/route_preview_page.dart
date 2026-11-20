@@ -13,6 +13,8 @@ import 'package:strasse/features/map/strasse_map.dart';
 import 'package:strasse/features/navigation/navigation_page.dart';
 import 'package:strasse/features/routing/route_options_sheet.dart';
 import 'package:strasse/features/search/search_page.dart';
+import 'package:strasse/features/sharing/share_service.dart';
+import 'package:strasse/features/transit/transit_itinerary_page.dart';
 import 'package:strasse/features/traffic/traffic_controller.dart';
 
 /// Aperçu des itinéraires : départ, étapes, arrivée, mode, alternatives comparées sur la carte, options, puis démarrage.
@@ -228,6 +230,44 @@ class _RoutePreviewPageState extends ConsumerState<RoutePreviewPage> {
     if (settings.historyEnabled) ref.read(dataActionsProvider).rememberPlace(_destination);
   }
 
+  void _openTransit({required bool follow}) {
+    if (_transit.isEmpty) return;
+    final it = _transit[_selected.clamp(0, _transit.length - 1)];
+    if (it.legs.isEmpty) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => TransitItineraryPage(itinerary: it, origin: _origin, destination: _destination, follow: follow),
+    ));
+    if (ref.read(settingsProvider).historyEnabled) ref.read(dataActionsProvider).rememberPlace(_destination);
+  }
+
+  Future<void> _shareRoute() async {
+    final fix = ref.read(locationControllerProvider).fix;
+    GeoPoint? from = _origin?.point ?? fix?.point;
+    var summary = '';
+    if (_mode == TravelMode.transit && _transit.isNotEmpty) {
+      final it = _transit[_selected.clamp(0, _transit.length - 1)];
+      from ??= it.legs.isEmpty ? null : it.legs.first.from;
+      summary = '${formatClock(it.start)} → ${formatClock(it.end)} · ${formatDuration(it.duration.inSeconds.toDouble())}';
+    } else if (_routes.isNotEmpty) {
+      final r = _routes[_selected.clamp(0, _routes.length - 1)];
+      from ??= r.start;
+      summary = '${formatDistance(r.distanceM)} · ${formatDuration(r.durationS)}';
+    }
+    if (from == null) {
+      showMessage(context, 'Choisissez un départ précis ou activez la localisation pour partager cet itinéraire.');
+      return;
+    }
+    await ShareService.shareRoute(
+      context,
+      originLabel: _origin?.title ?? 'Ma position',
+      destinationLabel: _destination.title,
+      from: from,
+      to: _destination.point,
+      mode: _mode,
+      summary: summary,
+    );
+  }
+
   Future<void> _saveTrip() async {
     final name = await askText(context, title: 'Enregistrer le trajet', initial: _destination.title, hint: 'Nom du trajet');
     if (name == null || name.isEmpty || !mounted) return;
@@ -425,10 +465,21 @@ class _RoutePreviewPageState extends ConsumerState<RoutePreviewPage> {
                       child: FilledButton(onPressed: _start, child: const Text('Démarrer')),
                     ),
                   ],
-                  if (_mode == TravelMode.transit && _transit.isNotEmpty)
+                  if (_mode == TravelMode.transit && !_loading && _error == null && _transit.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 56,
+                      child: FilledButton(onPressed: () => _openTransit(follow: true), child: const Text('Démarrer')),
+                    ),
                     const Padding(
                       padding: EdgeInsets.only(top: 12),
-                      child: Text('Horaires fournis par le serveur de transports configuré. Le guidage pas à pas n\'est pas disponible en transports en commun.', style: TextStyle(fontSize: 12)),
+                      child: Text('Horaires issus des données ouvertes des opérateurs (Transitous). Le temps réel n\'est indiqué que lorsque l\'opérateur le publie ; sinon l\'horaire est théorique.', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                  if (!_loading && _error == null && (_routes.isNotEmpty || _transit.isNotEmpty))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: OutlinedButton.icon(onPressed: _shareRoute, icon: const Icon(Icons.ios_share_rounded), label: const Text('Partager l\'itinéraire')),
                     ),
                 ],
               ),
@@ -563,6 +614,10 @@ class _RoutePreviewPageState extends ConsumerState<RoutePreviewPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () {
+            if (i == _selected) {
+              _openTransit(follow: false);
+              return;
+            }
             setState(() => _selected = i);
             _drawRoutes();
             _fit();

@@ -74,6 +74,8 @@ class AppConfig {
   static const String version = '1.0.0';
   static const String osmAttribution = '© Contributeurs OpenStreetMap';
   static const String osmCopyrightUrl = 'https://www.openstreetmap.org/copyright';
+  /// Serveur Strasse hébergé (Cloudflare Worker, voir server/cloudflare). À remplacer par l'adresse de votre déploiement.
+  static const String strasseServerUrl = 'https://strasse-server.lastapps888.workers.dev';
   static const String releasesUrl = 'https://github.com/lastapps888/Strasse/releases';
   static const String repoUrl = 'https://github.com/lastapps888/Strasse';
 

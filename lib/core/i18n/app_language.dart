@@ -14,7 +14,13 @@ enum AppLanguage {
   pt('pt', 'Português', 'pt-PT', 'pt-PT'),
   pl('pl', 'Polski', 'pl-PL', 'pl-PL'),
   nl('nl', 'Nederlands', 'nl-NL', 'nl-NL'),
-  ja('ja', '日本語', 'ja-JP', 'ja-JP');
+  ja('ja', '日本語', 'ja-JP', 'ja-JP'),
+  vi('vi', 'Tiếng Việt', 'vi-VN', 'en-US'),
+  hi('hi', 'हिन्दी', 'hi-IN', 'en-US'),
+  bn('bn', 'বাংলা', 'bn-BD', 'en-US'),
+  id('id', 'Bahasa Indonesia', 'id-ID', 'id-ID'),
+  tr('tr', 'Türkçe', 'tr-TR', 'tr-TR'),
+  ur('ur', 'اردو', 'ur-PK', 'en-US', rtl: true);
 
   const AppLanguage(this.code, this.nativeName, this.ttsTag, this.routingTag, {this.rtl = false});
 
@@ -39,7 +45,7 @@ enum AppLanguage {
     return AppLanguage.fr;
   }
 
-  /// Langue de l'appareil si elle fait partie des douze, sinon le français.
+  /// Langue de l'appareil si elle fait partie des langues prises en charge, sinon le français.
   static AppLanguage fromDevice(String? deviceCode) => fromCode(deviceCode);
 
   /// Convertit le réglage enregistré : vide = suivre l'appareil.

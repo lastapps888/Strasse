@@ -198,7 +198,7 @@ class LocalMusicBackend implements MusicBackend {
   @override
   Future<void> setShuffle(bool on) => engine.setShuffle(on);
   @override
-  Future<void> setRepeat(RepeatMode mode) => engine.setRepeat(mode);
+  Future<void> setRepeat(PlayerRepeatMode mode) => engine.setRepeat(mode);
 
   @override
   void dispose() {}

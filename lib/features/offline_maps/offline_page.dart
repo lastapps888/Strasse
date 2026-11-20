@@ -424,9 +424,12 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
                 children: [
                   const Text('Déplacez et zoomez la carte, puis tirez les poignées du cadre pour l\'étirer dans la forme voulue (jusqu\'à 1 000 × 1 000 km).', style: TextStyle(fontSize: 13)),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [for (final e in _levels.entries) ChoiceChip(label: Text(e.value), selected: _level == e.key, onSelected: (_) => setState(() => _level = e.key))],
+                  DropdownButtonFormField<int>(
+                    value: _level,
+                    isDense: true,
+                    decoration: InputDecoration(labelText: tr('Niveau de détail'), border: const OutlineInputBorder()),
+                    items: [for (final e in _levels.entries) DropdownMenuItem<int>(value: e.key, child: Text(e.value))],
+                    onChanged: (v) => setState(() => _level = v ?? _autoZoom),
                   ),
                   const SizedBox(height: 8),
                   TextField(controller: _name, maxLength: 50, decoration: InputDecoration(hintText: tr('Nom (facultatif)'), counterText: tr(''))),

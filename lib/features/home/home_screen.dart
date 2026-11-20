@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/app/widgets/nav_helpers.dart';
-import 'package:strasse/app/widgets/strasse_logo.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/geocoder_client.dart';
 import 'package:strasse/data/providers/providers.dart';
@@ -134,15 +133,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: ListView(
         padding: EdgeInsets.only(top: padding.top + 12, bottom: 120 + padding.bottom),
         children: [
-          Column(
-            children: [
-              const StrasseLogo(size: 56),
-              const SizedBox(height: 4),
-              Text('STRASSE', style: context.tt.labelLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-            ],
-          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: Text(_greeting(), style: context.tt.displaySmall?.copyWith(fontWeight: FontWeight.w800, fontSize: 34)),
           ),
           const SizedBox(height: 16),

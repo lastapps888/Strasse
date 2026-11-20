@@ -2,7 +2,8 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:strasse/features/sharing/share_service.dart';
+import 'package:strasse/features/places/place_info_block.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/core/core.dart';
@@ -11,7 +12,7 @@ import 'package:strasse/domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Fiche d'un lieu : adresse, catégorie, coordonnées et — uniquement si la source les fournit — téléphone,
-/// site web et horaires. Aucune note, photo ni avis n'est affiché : ces données n'existent pas dans OpenStreetMap.
+/// site web et horaires. Photo et résumé : Wikipédia / Wikimedia Commons lorsqu'un article correspond au lieu.
 class PlaceSheet extends ConsumerWidget {
   const PlaceSheet({super.key, required this.place, required this.onRoute, this.onClose, this.loading = false, this.distanceFrom});
 
@@ -68,6 +69,10 @@ class PlaceSheet extends ConsumerWidget {
               padding: const EdgeInsets.only(top: 6),
               child: Text('À ${formatDistance(distanceM(distanceFrom!, place.point), units)} à vol d\'oiseau', style: context.tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
             ),
+          if (!loading && place.source != 'coordinates') ...[
+            const SizedBox(height: 8),
+            PlaceInfoBlock(place: place),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -104,7 +109,7 @@ class PlaceSheet extends ConsumerWidget {
               ActionChip(
                 avatar: const Icon(Icons.ios_share_rounded, size: 18),
                 label: const Text('Partager'),
-                onPressed: () => Share.share(_shareText(), subject: place.title),
+                onPressed: () => ShareService.sharePlace(context, place),
               ),
               ActionChip(
                 avatar: const Icon(Icons.copy_rounded, size: 18),
@@ -140,14 +145,6 @@ class PlaceSheet extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _shareText() {
-    final b = StringBuffer(place.title);
-    if (place.subtitle != null) b.write('\n${place.subtitle}');
-    b.write('\n${place.coordsLabel}');
-    b.write('\nhttps://www.openstreetmap.org/?mlat=${place.point.lat}&mlon=${place.point.lon}#map=17/${place.point.lat}/${place.point.lon}');
-    return b.toString();
   }
 
   Future<void> _open(BuildContext context, Uri uri) async {

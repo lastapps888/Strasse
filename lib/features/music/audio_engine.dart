@@ -45,7 +45,7 @@ class AudioEngine {
     }
   }
 
-  PlaybackSnapshot snapshot({RepeatMode? repeat}) {
+  PlaybackSnapshot snapshot({PlayerRepeatMode? repeat}) {
     final i = _player.currentIndex;
     final track = (i != null && i >= 0 && i < _queue.length) ? _queue[i] : null;
     return PlaybackSnapshot(
@@ -56,9 +56,9 @@ class AudioEngine {
       volume: _player.volume,
       shuffle: _player.shuffleModeEnabled,
       repeat: switch (_player.loopMode) {
-        LoopMode.off => RepeatMode.off,
-        LoopMode.all => RepeatMode.all,
-        LoopMode.one => RepeatMode.one,
+        LoopMode.off => PlayerRepeatMode.off,
+        LoopMode.all => PlayerRepeatMode.all,
+        LoopMode.one => PlayerRepeatMode.one,
       },
     );
   }
@@ -82,10 +82,10 @@ class AudioEngine {
     await _player.setShuffleModeEnabled(on);
   }
 
-  Future<void> setRepeat(RepeatMode m) => _player.setLoopMode(switch (m) {
-        RepeatMode.off => LoopMode.off,
-        RepeatMode.all => LoopMode.all,
-        RepeatMode.one => LoopMode.one,
+  Future<void> setRepeat(PlayerRepeatMode m) => _player.setLoopMode(switch (m) {
+        PlayerRepeatMode.off => LoopMode.off,
+        PlayerRepeatMode.all => LoopMode.all,
+        PlayerRepeatMode.one => LoopMode.one,
       });
 
   Future<void> stop() async {

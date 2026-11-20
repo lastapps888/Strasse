@@ -58,6 +58,14 @@ class PreferencesStore {
   Future<void> writeActiveNavigation(Map<String, dynamic> json) => _prefs.setString(_activeNavKey, jsonEncode(json));
   Future<void> clearActiveNavigation() => _prefs.remove(_activeNavKey);
 
+  /// Mises à jour : date de la dernière vérification, dernière version notifiée, dernière version ignorée.
+  DateTime? get updateCheckedAt => _readDate('update.checkedAt');
+  Future<void> setUpdateChecked(DateTime t) => _prefs.setString('update.checkedAt', t.toUtc().toIso8601String());
+  String? get updateNotified => _prefs.getString('update.notified');
+  Future<void> setUpdateNotified(String v) => _prefs.setString('update.notified', v);
+  String? get updateSeen => _prefs.getString('update.seen');
+  Future<void> setUpdateSeen(String v) => _prefs.setString('update.seen', v);
+
   /// Efface toutes les préférences (réinitialisation complète).
   Future<void> clearAll() => _prefs.clear();
 }

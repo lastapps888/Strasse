@@ -1,3 +1,4 @@
+import 'package:strasse/features/map/poi_badges.dart';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -374,17 +375,18 @@ class MapStyleBuilder {
       if (settings.showPoi) {
         layers.addAll([
           {
+            // Badge par catégorie (images enregistrées au chargement du style, voir PoiBadges).
             'id': 'poi-dots',
-            'type': 'circle',
+            'type': 'symbol',
             'source': 'strasse',
             'source-layer': 'poi',
-            'minzoom': 15 + labelShift,
+            'minzoom': 14.5 + labelShift,
             'filter': ['<=', ['get', 'rank'], density == 0 ? 8 : (density == 1 ? 20 : 50)],
-            'paint': {
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 3, 19, 6],
-              'circle-color': hex(p.poi),
-              'circle-stroke-color': hex(p.labelHalo),
-              'circle-stroke-width': 1.4,
+            'layout': {
+              'icon-image': PoiBadges.iconExpression(),
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 14.5, 0.5, 17, 0.62, 19, 0.78],
+              'icon-padding': 3,
+              'icon-allow-overlap': false,
             },
           },
           {
@@ -398,7 +400,7 @@ class MapStyleBuilder {
               'text-field': ['coalesce', ['get', 'name:fr'], ['get', 'name']],
               'text-font': fonts,
               'text-size': 11,
-              'text-offset': [0, 0.9],
+              'text-offset': [0, 1.3],
               'text-anchor': 'top',
               'text-optional': true,
             },
@@ -465,11 +467,39 @@ class MapStyleBuilder {
       ]);
     }
 
+    final sources = <String, dynamic>{if (hasTiles) 'strasse': source()};
+    if (settings.showSatellite) {
+      // Vue satellite : on retire les aplats vectoriels (végétation, eau, bâtiments) et on garde routes, noms et repères
+      // par-dessus l'imagerie. Sentinel-2 (monde, ~10 m) sert de fond ; l'orthophoto IGN (~20 cm, France) la recouvre.
+      const flat = {'landcover', 'wood', 'park', 'water', 'waterway', 'building', 'building-3d'};
+      layers.removeWhere((l) => flat.contains(l['id']));
+      sources['sat-world'] = {
+        'type': 'raster',
+        'tiles': ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg'],
+        'tileSize': 256,
+        'maxzoom': 13,
+        'attribution': 'Sentinel-2 cloudless – s2maps.eu par EOX IT Services GmbH (Copernicus Sentinel 2024, CC BY-NC-SA 4.0)',
+      };
+      sources['sat-fr'] = {
+        'type': 'raster',
+        'tiles': ['https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg'],
+        'tileSize': 256,
+        'minzoom': 6,
+        'maxzoom': 19,
+        'bounds': [-5.6, 41.2, 10.0, 51.2],
+        'attribution': 'Orthophotographies © IGN (Licence Ouverte)',
+      };
+      layers.insertAll(1, [
+        {'id': 'sat-world', 'type': 'raster', 'source': 'sat-world', 'paint': {'raster-fade-duration': 150}},
+        {'id': 'sat-fr', 'type': 'raster', 'source': 'sat-fr', 'minzoom': 6, 'paint': {'raster-fade-duration': 150}},
+      ]);
+    }
+
     return {
       'version': 8,
       'name': 'Strasse',
       'glyphs': glyphsUrl.isEmpty ? 'https://invalid.local/{fontstack}/{range}.pbf' : glyphsUrl,
-      if (hasTiles) 'sources': {'strasse': source()} else 'sources': <String, dynamic>{},
+      'sources': sources,
       'layers': layers,
     };
   }

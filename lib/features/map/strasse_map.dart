@@ -10,6 +10,7 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/map/map_style_builder.dart';
+import 'package:strasse/features/map/poi_badges.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 
@@ -39,6 +40,14 @@ ml.LatLng _ll(GeoPoint p) => ml.LatLng(p.lat, p.lon);
 
 /// Pilote la carte : tout ce qui est dessiné dessus (itinéraires, position, épingles, événements) est mémorisé ici
 /// et redessiné automatiquement après un changement de style (clair/sombre, personnalisation…).
+class _FollowCam {
+  const _FollowCam({required this.zoom, required this.tilt, required this.useHeading, this.fallbackBearing});
+  final double zoom;
+  final double tilt;
+  final bool useHeading;
+  final double? fallbackBearing;
+}
+
 class StrasseMapController {
   ml.MapLibreMapController? _c;
   Future<void> _queue = Future.value();
@@ -58,7 +67,10 @@ class StrasseMapController {
 
   ml.Circle? _userHalo;
   ml.Circle? _userDot;
-  ml.Symbol? _userSymbol;
+  /// Véhicule : source GeoJSON + couche `symbol` (permet `icon-allow-overlap` et une rotation alignée sur la carte,
+  /// que `SymbolOptions` n'expose pas).
+  bool _vehicleLayerReady = false;
+  bool _vehicleShown = false;
   VehicleIcon _vehicle = VehicleIcon.arrow;
   bool _useVehicle = false;
   double _userBearing = 0;
@@ -87,6 +99,7 @@ class StrasseMapController {
   }
 
   void detach() {
+    _stopGlide();
     _c?.removeListener(_cameraChanged);
     _c = null;
   }
@@ -172,12 +185,119 @@ class StrasseMapController {
   }
 
   Future<void> setUser(GeoPoint? p, {double accuracy = 0, bool stale = false, Color? color, double? bearing}) {
-    if (bearing != null) _userBearing = bearing;
-    _user = p;
     _userAccuracy = accuracy;
     _userStale = stale;
     if (color != null) _userColor = color;
-    return _enqueue(_drawUser);
+    if (p == null) {
+      _stopGlide();
+      _user = null;
+      _shown = null;
+      return _enqueue(_drawUser);
+    }
+    final now = DateTime.now();
+    final newBearing = bearing ?? _userBearing;
+    final first = _shown == null || _user == null;
+    // Saut important (changement de lieu, reprise après une longue pause) : on s'y place sans glisser.
+    if (first || distanceM(_shown!, p) > 250) {
+      _stopGlide();
+      _user = p;
+      _shown = p;
+      _userBearing = newBearing;
+      _shownBearing = newBearing;
+      _lastFixAt = now;
+      return _enqueue(_drawUser);
+    }
+    // Glissement de la position affichée vers la nouvelle mesure GPS, sur la durée réellement écoulée entre deux
+    // mesures (jamais de téléportation) ; la précision et le cap affichés restent ceux du GPS.
+    final gap = _lastFixAt == null ? 1000 : now.difference(_lastFixAt!).inMilliseconds;
+    _lastFixAt = now;
+    _glideFrom = _shown;
+    _glideFromBearing = _shownBearing;
+    _user = p;
+    _userBearing = newBearing;
+    _glideStart = now;
+    _glideMs = gap.clamp(350, 1600);
+    _startGlide();
+    return _queue;
+  }
+
+  // ---------------------------------------------------------- Glissement
+
+  GeoPoint? _shown; // position réellement dessinée
+  double _shownBearing = 0;
+  GeoPoint? _glideFrom;
+  double _glideFromBearing = 0;
+  DateTime _glideStart = DateTime.fromMillisecondsSinceEpoch(0);
+  int _glideMs = 1000;
+  DateTime? _lastFixAt;
+  Timer? _glideTimer;
+  bool _framePending = false;
+  _FollowCam? _cam;
+
+  /// Fait suivre la caméra au véhicule à chaque image (au lieu d'une animation par mesure GPS) : carte et véhicule
+  /// restent synchronisés. `null` arrête le suivi.
+  void setFollowCamera({double zoom = 16.5, double tilt = 0, bool useHeading = true, double? fallbackBearing}) {
+    _cam = _FollowCam(zoom: zoom, tilt: tilt, useHeading: useHeading, fallbackBearing: fallbackBearing);
+    if (_glideTimer == null && _shown != null) _enqueue(_frame);
+  }
+
+  void clearFollowCamera() => _cam = null;
+
+  void _startGlide() {
+    _glideTimer ??= Timer.periodic(const Duration(milliseconds: 40), (_) {
+      if (_framePending) return;
+      _framePending = true;
+      _enqueue(_frame);
+    });
+  }
+
+  void _stopGlide() {
+    _glideTimer?.cancel();
+    _glideTimer = null;
+    _framePending = false;
+  }
+
+  static double _lerpAngle(double a, double b, double t) {
+    var d = (b - a) % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return (a + d * t) % 360;
+  }
+
+  Future<void> _frame() async {
+    _framePending = false;
+    final c = _c;
+    final from = _glideFrom;
+    final to = _user;
+    if (c == null || to == null) {
+      _stopGlide();
+      return;
+    }
+    final elapsed = DateTime.now().difference(_glideStart).inMilliseconds;
+    final t = from == null ? 1.0 : (elapsed / _glideMs).clamp(0.0, 1.0);
+    if (from != null) {
+      _shown = GeoPoint(from.lat + (to.lat - from.lat) * t, from.lon + (to.lon - from.lon) * t);
+      _shownBearing = _lerpAngle(_glideFromBearing, _userBearing, math.min(1.0, t * 1.5));
+    } else {
+      _shown = to;
+      _shownBearing = _userBearing;
+    }
+    await _drawUserNow();
+    final cam = _cam;
+    final shown = _shown;
+    if (cam != null && shown != null) {
+      _lastProgrammatic = DateTime.now();
+      try {
+        await c.moveCamera(ml.CameraUpdate.newCameraPosition(ml.CameraPosition(
+          target: _ll(shown),
+          zoom: cam.zoom,
+          bearing: cam.useHeading ? _shownBearing : (cam.fallbackBearing ?? 0),
+          tilt: cam.tilt,
+        )));
+      } catch (_) {}
+    }
+    // Fin du glissement : on arrête la minuterie (elle repart à la mesure suivante).
+    if (t >= 1.0) _stopGlide();
   }
 
   /// Redessine tout après un (re)chargement de style.
@@ -194,12 +314,50 @@ class StrasseMapController {
         _circleToPin.clear();
         _userDot = null;
         _userHalo = null;
-        _userSymbol = null;
+        _vehicleLayerReady = false;
+        _vehicleShown = false;
         _vehicleImageKey = null;
+        await _registerPoiBadges(c);
         await _drawRoutesNow();
         await _drawPinsNow();
         await _drawUserNow();
       });
+
+  Future<void> _registerPoiBadges(ml.MapLibreMapController c) async {
+    try {
+      for (final b in [...PoiBadges.all, PoiBadges.other]) {
+        await c.addImage(b.image, await PoiBadges.render(b));
+      }
+    } catch (_) {
+      // Image déjà présente dans le style rechargé : sans conséquence.
+    }
+  }
+
+  /// Lieu déjà repéré par un badge ou un nom sur la carte, sous le point touché (null si rien n'y est affiché).
+  Future<Place?> placeAt(math.Point<double> screen) async {
+    final c = _c;
+    if (c == null) return null;
+    try {
+      final rect = Rect.fromCenter(center: Offset(screen.x, screen.y), width: 36, height: 36);
+      final found = await c.queryRenderedFeaturesInRect(rect, const ['poi-dots', 'poi-labels'], null);
+      for (final f in found) {
+        if (f is! Map) continue;
+        final props = f['properties'];
+        final geom = f['geometry'];
+        if (props is! Map || geom is! Map) continue;
+        final coords = geom['coordinates'];
+        if (coords is! List || coords.length < 2) continue;
+        final name = '${props['name:fr'] ?? props['name'] ?? ''}'.trim();
+        if (name.isEmpty) continue;
+        final cls = props['class'] is String ? props['class'] as String : null;
+        final sub = props['subclass'] is String ? props['subclass'] as String : null;
+        final lon = (coords[0] as num).toDouble();
+        final lat = (coords[1] as num).toDouble();
+        return Place(id: 'map:${lat.toStringAsFixed(6)},${lon.toStringAsFixed(6)}', name: name, point: GeoPoint(lat, lon), category: sub ?? cls, source: 'map');
+      }
+    } catch (_) {}
+    return null;
+  }
 
   // ----------------------------------------------------------------- Dessin
 
@@ -310,16 +468,66 @@ class StrasseMapController {
   Future<void> _removeUser(ml.MapLibreMapController c) async {
     if (_userHalo != null) await c.removeCircle(_userHalo!);
     if (_userDot != null) await c.removeCircle(_userDot!);
-    if (_userSymbol != null) await c.removeSymbol(_userSymbol!);
+    await _hideVehicle(c);
     _userHalo = null;
     _userDot = null;
-    _userSymbol = null;
+  }
+
+  static const _vehicleSource = 'strasse-vehicle-src';
+  static const _vehicleLayer = 'strasse-vehicle-layer';
+
+  Map<String, dynamic> _vehicleGeoJson(GeoPoint p, String image) => {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [p.lon, p.lat]},
+            'properties': {'img': image, 'bearing': _shownBearing},
+          },
+        ],
+      };
+
+  Future<void> _showVehicle(ml.MapLibreMapController c, GeoPoint p, String image) async {
+    final data = _vehicleGeoJson(p, image);
+    if (!_vehicleLayerReady) {
+      try {
+        await c.addSource(_vehicleSource, ml.GeojsonSourceProperties(data: data));
+        await c.addSymbolLayer(
+          _vehicleSource,
+          _vehicleLayer,
+          ml.SymbolLayerProperties(
+            iconImage: ['get', 'img'],
+            iconSize: 0.42,
+            iconRotate: ['get', 'bearing'],
+            iconAllowOverlap: true,
+            iconIgnorePlacement: true,
+            iconRotationAlignment: 'map',
+            iconPitchAlignment: 'map',
+          ),
+        );
+        _vehicleLayerReady = true;
+      } catch (_) {
+        // La source existe déjà (style rechargé) : on la met simplement à jour ci-dessous.
+        _vehicleLayerReady = true;
+      }
+    } else {
+      await c.setGeoJsonSource(_vehicleSource, data);
+    }
+    _vehicleShown = true;
+  }
+
+  Future<void> _hideVehicle(ml.MapLibreMapController c) async {
+    if (!_vehicleLayerReady || !_vehicleShown) return;
+    try {
+      await c.setGeoJsonSource(_vehicleSource, {'type': 'FeatureCollection', 'features': <dynamic>[]});
+    } catch (_) {}
+    _vehicleShown = false;
   }
 
   Future<void> _drawUserNow({bool force = false}) async {
     final c = _c;
     if (c == null) return;
-    final p = _user;
+    final p = _shown ?? _user;
     if (force || p == null) await _removeUser(c);
     if (p == null) return;
     final color = _userStale ? const Color(0xFF8A93A0) : _userColor;
@@ -336,26 +544,14 @@ class StrasseMapController {
       if (_vehicleImageKey != key) {
         await c.addImage('vehicle-$key', await renderVehiclePng(_vehicle, color));
         _vehicleImageKey = key;
-        if (_userSymbol != null) {
-          await c.removeSymbol(_userSymbol!);
-          _userSymbol = null;
-        }
       }
-      final opts = ml.SymbolOptions(geometry: _ll(p), iconImage: 'vehicle-$key', iconSize: 0.42, iconRotate: _userBearing, iconAllowOverlap: true, iconRotationAlignment: 'map');
-      if (_userSymbol == null) {
-        _userSymbol = await c.addSymbol(opts);
-      } else {
-        await c.updateSymbol(_userSymbol!, opts);
-      }
+      await _showVehicle(c, p, 'vehicle-$key');
       if (_userDot != null) {
         await c.removeCircle(_userDot!);
         _userDot = null;
       }
     } else {
-      if (_userSymbol != null) {
-        await c.removeSymbol(_userSymbol!);
-        _userSymbol = null;
-      }
+      await _hideVehicle(c);
       if (_userDot == null) {
         _userDot = await c.addCircle(ml.CircleOptions(geometry: _ll(p), circleRadius: 8, circleColor: hex(color), circleStrokeColor: '#FFFFFF', circleStrokeWidth: 3));
       } else {
@@ -454,6 +650,7 @@ class StrasseMap extends ConsumerStatefulWidget {
     this.forceDark,
     this.onTap,
     this.onLongPress,
+    this.onPlaceTap,
     this.onCameraIdle,
     this.interactive = true,
     this.lockNorth = false,
@@ -468,6 +665,9 @@ class StrasseMap extends ConsumerStatefulWidget {
   final bool? forceDark;
   final void Function(GeoPoint point)? onTap;
   final void Function(GeoPoint point)? onLongPress;
+
+  /// Appelé quand on touche un lieu déjà marqué sur la carte (badge ou nom) : un seul toucher suffit.
+  final void Function(Place place)? onPlaceTap;
   final VoidCallback? onCameraIdle;
   final bool interactive;
 
@@ -498,7 +698,7 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
     final src = ref.watch(providerResolverProvider).mapSource();
     final key = '${identityHashCode(settings)}|$brightness|${src.tilesUrl}|${src.glyphsUrl}|${src.styleUrl}|${widget.forceDark}';
     if (key == _styleKey) return _style;
-    if (src.styleUrl != null) {
+    if (src.styleUrl != null && !(settings.showSatellite && src.tilesUrl.isNotEmpty)) {
       // Style complet d'un fournisseur (ex. OpenFreeMap Liberty) : utilisé tel quel.
       _style = src.styleUrl!;
       _styleKey = key;
@@ -539,7 +739,16 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
             widget.onReady(_controller);
           },
           onStyleLoadedCallback: () => _controller.reapply(),
-          onMapClick: (math.Point<double> _, ml.LatLng ll) => widget.onTap?.call(GeoPoint(ll.latitude, ll.longitude)),
+          onMapClick: (math.Point<double> pt, ml.LatLng ll) async {
+            if (widget.onPlaceTap != null) {
+              final place = await _controller.placeAt(pt);
+              if (place != null) {
+                widget.onPlaceTap!(place);
+                return;
+              }
+            }
+            widget.onTap?.call(GeoPoint(ll.latitude, ll.longitude));
+          },
           onMapLongClick: (math.Point<double> _, ml.LatLng ll) => widget.onLongPress?.call(GeoPoint(ll.latitude, ll.longitude)),
           onCameraIdle: widget.onCameraIdle,
           trackCameraPosition: true,
