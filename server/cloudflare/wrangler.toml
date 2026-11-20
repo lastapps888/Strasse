@@ -1,0 +1,10 @@
+# Serveur Strasse hébergé sur Cloudflare Workers + D1 (offre gratuite, sans carte bancaire).
+name = "strasse-server"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "strasse"
+# Remplacé par l'identifiant donné par : npx wrangler d1 create strasse
+database_id = "REMPLACER_PAR_L_ID_D1"
