@@ -73,9 +73,6 @@ def patch_native_android():
     if pkg:
         code = re.sub(r"^package\s+[\w.]+", "package " + pkg.group(1), code, count=1, flags=re.M)
     write(kt[0], code)
-    # Les anciennes icônes adaptatives de flutter create masqueraient les PNG fournis.
-    for f in glob.glob("android/app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml"):
-        os.remove(f)
     print("MainActivity.kt copié (changement d'icône, musique locale).")
 
 
@@ -87,7 +84,7 @@ def patch_native_ios():
         print("AppDelegate.swift copié (changement d'icône, MusicKit).")
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if not os.path.exists(pbx):
-        return warn("project.pbxproj introuvable : lancer flutter create pour iOS, puis ce script.")
+        return warn("ios/Runner.xcodeproj/project.pbxproj introuvable : lancer `flutter create --platforms=ios .` (tool/ci_prepare.sh le fait), puis ce script.")
     names = sorted(
         d[:-len(".appiconset")]
         for d in os.listdir("platform_assets/ios_assets")
@@ -101,8 +98,15 @@ def patch_native_ios():
             lambda m: m.group(1) + "\n" + m.group(2) + line,
             s,
         )
+        s, n2 = re.subn(
+            r"(\n(\s*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = [^\n]*;)",
+            lambda m: m.group(1) + "\n" + m.group(2) + "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;",
+            s,
+        )
         write(pbx, s)
         print(f"project.pbxproj : {len(names)} icônes alternatives déclarées dans {n} configuration(s).")
+        if n == 0:
+            warn("ASSETCATALOG_COMPILER_APPICON_NAME introuvable dans project.pbxproj : icônes alternatives non déclarées.")
 
 
 # ---------------------------------------------------------------- Android
@@ -139,113 +143,29 @@ def patch_manifest():
 
 
 def patch_gradle():
-    kts = "android/app/build.gradle.kts"
-    groovy = "android/app/build.gradle"
-    if os.path.exists(kts):
-        patch_gradle_kts(kts)
-    elif os.path.exists(groovy):
-        patch_gradle_groovy(groovy)
-    else:
-        warn("build.gradle(.kts) introuvable : voir INSTALLATION.md (minSdk 24, desugaring, signature).")
+    """Copie les fichiers Gradle de référence de Strasse (AGP 9.3.1, Gradle 9.5.0, Kotlin 2.4.10, compileSdk 36, Java 17).
 
-
-def patch_gradle_kts(path):
-    s = read(path)
-    if "strasse-patched" in s:
-        return
-    # minSdk 24
-    s, n = re.subn(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 24", s)
-    if n == 0 and "minSdk = 24" not in s:
-        warn("minSdk non modifié : définir minSdk = 24 dans android/app/build.gradle.kts.")
-    # Desugaring (flutter_local_notifications)
-    s, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        isCoreLibraryDesugaringEnabled = true", s, count=1)
-    if n == 0:
-        warn("compileOptions introuvable : ajouter isCoreLibraryDesugaringEnabled = true.")
-    if "coreLibraryDesugaring(" not in s:
-        s += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
-    # Signature de production via android/key.properties
-    if "key.properties" not in s:
-        header = (
-            "import java.util.Properties\n\n"
-            "val keystoreProperties = Properties().apply {\n"
-            '    val f = rootProject.file("key.properties")\n'
-            "    if (f.exists()) f.inputStream().use { load(it) }\n"
-            "}\n\n"
-        )
-        s = header + s
-        signing = (
-            "    signingConfigs {\n"
-            '        create("release") {\n'
-            '            if (keystoreProperties.isNotEmpty()) {\n'
-            '                keyAlias = keystoreProperties["keyAlias"] as String\n'
-            '                keyPassword = keystoreProperties["keyPassword"] as String\n'
-            '                storeFile = file(keystoreProperties["storeFile"] as String)\n'
-            '                storePassword = keystoreProperties["storePassword"] as String\n'
-            "            }\n"
-            "        }\n"
-            "    }\n\n"
-        )
-        s, n = re.subn(r"(\n\s*buildTypes\s*\{)", "\n" + signing + r"    buildTypes {", s, count=1)
-        if n == 0:
-            warn("buildTypes introuvable : configurer la signature manuellement (INSTALLATION.md).")
-        s, n = re.subn(
-            r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
-            'signingConfig = if (keystoreProperties.isNotEmpty()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")',
-            s,
-        )
-        if n == 0:
-            warn("Ligne signingConfig de la release introuvable : la signature de production est à configurer manuellement.")
-    s += "\n// strasse-patched\n"
-    write(path, s)
-    print("build.gradle.kts configuré (minSdk 24, desugaring, signature de production).")
-
-
-def patch_gradle_groovy(path):
-    s = read(path)
-    if "strasse-patched" in s:
-        return
-    s, n = re.subn(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 24", s)
-    if n == 0:
-        s, n = re.subn(r"minSdk\s*=?\s*flutter\.minSdkVersion", "minSdk = 24", s)
-    if n == 0:
-        warn("minSdk non modifié : définir minSdkVersion 24 dans android/app/build.gradle.")
-    s, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", s, count=1)
-    if n == 0:
-        warn("compileOptions introuvable : ajouter coreLibraryDesugaringEnabled true.")
-    if "coreLibraryDesugaring '" not in s:
-        s += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n"
-    if "key.properties" not in s:
-        header = (
-            "def keystoreProperties = new Properties()\n"
-            "def keystorePropertiesFile = rootProject.file('key.properties')\n"
-            "if (keystorePropertiesFile.exists()) {\n"
-            "    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))\n"
-            "}\n\n"
-        )
-        s = header + s
-        signing = (
-            "    signingConfigs {\n"
-            "        release {\n"
-            "            keyAlias keystoreProperties['keyAlias']\n"
-            "            keyPassword keystoreProperties['keyPassword']\n"
-            "            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null\n"
-            "            storePassword keystoreProperties['storePassword']\n"
-            "        }\n"
-            "    }\n\n"
-        )
-        s, n = re.subn(r"(\n\s*buildTypes\s*\{)", "\n" + signing + r"    buildTypes {", s, count=1)
-        if n == 0:
-            warn("buildTypes introuvable : configurer la signature manuellement (INSTALLATION.md).")
-        s, n = re.subn(
-            r"signingConfig\s+signingConfigs\.debug",
-            "signingConfig keystoreProperties.isEmpty() ? signingConfigs.debug : signingConfigs.release",
-            s,
-        )
-        if n == 0:
-            warn("Ligne signingConfig de la release introuvable : signature de production à configurer manuellement.")
-    s += "\n// strasse-patched\n"
-    write(path, s)
-    print("build.gradle configuré (minSdk 24, desugaring, signature de production).")
+    Ils remplacent entièrement ceux du gabarit de `flutter create` : leur structure change d'une version de Flutter à l'autre,
+    et une modification par expressions régulières casserait à la première évolution. `local.properties` n'est jamais touché.
+    """
+    src = "platform_assets/android_gradle"
+    if not os.path.isdir(src) or not os.path.isdir("android"):
+        return warn("platform_assets/android_gradle ou android/ introuvable : configuration Gradle non appliquée.")
+    mapping = {
+        "settings.gradle.kts": "android/settings.gradle.kts",
+        "build.gradle.kts": "android/build.gradle.kts",
+        "app.build.gradle.kts": "android/app/build.gradle.kts",
+        "gradle.properties": "android/gradle.properties",
+        "gradle-wrapper.properties": "android/gradle/wrapper/gradle-wrapper.properties",
+    }
+    for name, dst in mapping.items():
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(os.path.join(src, name), dst)
+    # Les anciens fichiers Groovy du gabarit ne doivent pas coexister avec les .kts.
+    for old in ("android/build.gradle", "android/settings.gradle", "android/app/build.gradle"):
+        if os.path.exists(old):
+            os.remove(old)
+    print("Fichiers Gradle de référence copiés (AGP 9.3.1, Gradle 9.5.0, Kotlin 2.4.10, compileSdk 36, Java 17).")
 
 
 # ---------------------------------------------------------------- iOS
@@ -284,7 +204,19 @@ def patch_info_plist():
         "NSAppleMusicUsageDescription",
         "<string>Strasse accède à votre bibliothèque Apple Music uniquement pour lire votre musique pendant le trajet. Rien n'est envoyé ailleurs.</string>",
     )
-    s = plist_set(s, "LSApplicationQueriesSchemes", "<array>\n\t\t<string>spotify</string>\n\t</array>")
+    s = plist_set(s, "LSApplicationQueriesSchemes", "<array>\n\t\t<string>spotify</string>\n\t\t<string>music</string>\n\t\t<string>deezer</string>\n\t</array>")
+    # Cycle de vie UIScene (Flutter 3.38+) : indispensable à l'enregistrement des canaux natifs (voir AppDelegate.swift).
+    if "UIApplicationSceneManifest" not in s and "_UIApplicationSceneManifest" not in s:
+        scene = (
+            "<dict>\n\t\t<key>UIApplicationSupportsMultipleScenes</key>\n\t\t<false/>\n\t\t<key>UISceneConfigurations</key>\n\t\t<dict>\n"
+            "\t\t\t<key>UIWindowSceneSessionRoleApplication</key>\n\t\t\t<array>\n\t\t\t\t<dict>\n"
+            "\t\t\t\t\t<key>UISceneClassName</key>\n\t\t\t\t\t<string>UIWindowScene</string>\n"
+            "\t\t\t\t\t<key>UISceneDelegateClassName</key>\n\t\t\t\t\t<string>FlutterSceneDelegate</string>\n"
+            "\t\t\t\t\t<key>UISceneConfigurationName</key>\n\t\t\t\t\t<string>flutter</string>\n"
+            "\t\t\t\t\t<key>UISceneStoryboardFile</key>\n\t\t\t\t\t<string>Main</string>\n"
+            "\t\t\t\t</dict>\n\t\t\t</array>\n\t\t</dict>\n\t</dict>"
+        )
+        s = plist_set(s, "UIApplicationSceneManifest", scene)
     write(path, s)
     print("Info.plist configuré (nom, permission de localisation en français, arrière-plan, chiffrement).")
 
