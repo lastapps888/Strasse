@@ -523,6 +523,48 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
+/// Couches et style de carte.
+class _LayersSheet extends ConsumerWidget {
+  const _LayersSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final ctrl = ref.read(settingsProvider.notifier);
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionTitle('Style de carte'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  for (final m in MapStyleChoice.values)
+                    ChoiceChip(label: Text(m.label), selected: s.mapStyle == m, onSelected: (_) => ctrl.update((x) => x.copyWith(mapStyle: m))),
+                ],
+              ),
+            ),
+            const SectionTitle('Détails'),
+            SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
+            SwitchRow(title: 'Lieux d\'intérêt', value: s.showPoi, onChanged: (v) => ctrl.update((x) => x.copyWith(showPoi: v))),
+            SwitchRow(title: 'Transports en commun', subtitle: 'Lignes, arrêts et horaires ; zoomez pour les voir', value: s.showTransit, onChanged: (v) => ctrl.update((x) => x.copyWith(showTransit: v))),
+            SwitchRow(title: 'Hôtels', subtitle: 'Zoomez pour les afficher', value: s.showHotels, onChanged: (v) => ctrl.update((x) => x.copyWith(showHotels: v))),
+            SwitchRow(title: 'Restaurants', subtitle: 'Zoomez pour les afficher', value: s.showRestaurants, onChanged: (v) => ctrl.update((x) => x.copyWith(showRestaurants: v))),
+            SwitchRow(title: 'Sites touristiques', subtitle: 'Zoomez pour les afficher', value: s.showTourismSites, onChanged: (v) => ctrl.update((x) => x.copyWith(showTourismSites: v))),
+            SwitchRow(title: 'Pistes cyclables', value: s.showCycleways, onChanged: (v) => ctrl.update((x) => x.copyWith(showCycleways: v))),
+            SwitchRow(title: 'Signalements et incidents', subtitle: 'Nécessite un serveur Strasse', value: s.showTrafficEvents, onChanged: (v) => ctrl.update((x) => x.copyWith(showTrafficEvents: v))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Pastille de vitesse instantanée (valeur GPS, sans limite de vitesse : celle-ci n'apparaît qu'en navigation).
 class _LiveSpeedChip extends StatelessWidget {
   const _LiveSpeedChip({required this.speedMps, required this.units, this.unavailable = false});
