@@ -45,7 +45,7 @@ dependencies:
 
   # Réservation (WebView intégrée), sélecteur de fichiers, musique
   webview_flutter: ^4.10.0
-  file_picker: ^8.1.4
+  file_picker: ^13.4.0
   just_audio: ^0.9.42
   just_audio_background: ^0.0.1-beta.13
   audio_session: ^0.1.21
