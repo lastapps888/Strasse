@@ -1,5 +1,5 @@
-# Cible iOS 13 minimum (maplibre_gl, geolocator, flutter_local_notifications).
-platform :ios, '13.0'
+# Cible iOS 14 minimum (file_picker >=12).
+platform :ios, '14.0'
 
 # Désactive les statistiques CocoaPods : aucune télémétrie.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
