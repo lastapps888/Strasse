@@ -144,3 +144,6 @@ class _Template {
 
 /// Traduit un texte écrit en français dans la langue choisie.
 String tr(String french) => Translator.translate(french);
+
+/// Traduit une chaîne facultative sans transformer null en chaîne vide.
+String? trn(String? french) => french == null ? null : tr(french);
