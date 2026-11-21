@@ -430,7 +430,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 const SizedBox(height: 10),
               ],
               _RoundButton(
-                tooltip: trn(switch (_follow) {
+                tooltip: tr(switch (_follow) {
                   FollowMode.off => 'Me localiser',
                   FollowMode.follow => 'Suivre avec la direction',
                   FollowMode.heading => 'Suivi avec la direction actif',
