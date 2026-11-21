@@ -10,8 +10,9 @@ import 'package:strasse/domain/domain.dart';
 /// fonctions SQL (RPC) pour les signalements. Seule la clé publique « anon » est utilisée : la sécurité repose
 /// sur les politiques RLS décrites dans `supabase/`. Aucune clé privilégiée ne doit jamais être saisie ici.
 class SupabaseBackend implements AccountBackend {
-  SupabaseBackend({required String url, required this.anonKey, required this.secure, Dio? dio})
-      : baseUrl = url.trim().replaceAll(RegExp(r'/+$'), '') {
+  SupabaseBackend({required String url, required String anonKey, required this.secure, Dio? dio})
+      : anonKey = anonKey.trim().isNotEmpty ? anonKey.trim() : 'sb_publishable_3TXETm0ckp57A6TQfyJ-eg_dD_EkyOd',
+        baseUrl = (url.trim().isNotEmpty ? url.trim() : 'https://msgaoprkocgbsirbjaab.supabase.co').replaceAll(RegExp(r'/+$'), '') {
     final options = BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 8),
