@@ -226,11 +226,45 @@ def patch_podfile():
     if not os.path.exists(path):
         return warn("Podfile introuvable.")
     s = read(path)
-    s2, n = re.subn(r"^\s*#?\s*platform :ios, '[^']*'", "platform :ios, '13.0'", s, count=1, flags=re.M)
+    s2, n = re.subn(r"^\s*#?\s*platform :ios, '[^']*'", "platform :ios, '14.0'", s, count=1, flags=re.M)
     if n == 0:
-        s2 = "platform :ios, '13.0'\n" + s
+        s2 = "platform :ios, '14.0'\n" + s
     write(path, s2)
-    print("Podfile : cible iOS 13.0.")
+
+    # file_picker >=12 exige iOS 14 : aligner aussi la cible de l'application générée.
+    pbx = "ios/Runner.xcodeproj/project.pbxproj"
+    if os.path.exists(pbx):
+        project = read(pbx)
+        project, count = re.subn(
+            r"IPHONEOS_DEPLOYMENT_TARGET = [^;]+;",
+            "IPHONEOS_DEPLOYMENT_TARGET = 14.0;",
+            project,
+        )
+        if count:
+            write(pbx, project)
+            print(f"project.pbxproj : cible iOS 14.0 appliquée ({count} réglages).")
+        else:
+            warn("IPHONEOS_DEPLOYMENT_TARGET introuvable dans project.pbxproj : définir manuellement la cible iOS 14.0.")
+    else:
+        warn("project.pbxproj absent : la cible iOS 14.0 devra être vérifiée après génération du projet Xcode.")
+
+    framework = "ios/Flutter/AppFrameworkInfo.plist"
+    if os.path.exists(framework):
+        info = read(framework)
+        info, count = re.subn(
+            r"(<key>MinimumOSVersion</key>\\s*<string>)[^<]+(</string>)",
+            r"\\g<1>14.0\\g<2>",
+            info,
+            count=1,
+        )
+        if count:
+            write(framework, info)
+        else:
+            warn("MinimumOSVersion introuvable dans AppFrameworkInfo.plist : vérifier manuellement la cible iOS 14.0.")
+    else:
+        warn("AppFrameworkInfo.plist introuvable : vérifier manuellement la cible iOS 14.0.")
+
+    print("Cible iOS 14.0 appliquée au Podfile et aux réglages natifs.")
 
 
 # ---------------------------------------------------------------- Divers
