@@ -87,10 +87,10 @@ class LocalMusicBackend implements MusicBackend {
   /// Ajoute des fichiers audio choisis par l'utilisateur. Sur Android, le sélecteur copie les fichiers dans le cache de
   /// l'application : ils sont oubliés au redémarrage (la bibliothèque de l'appareil, elle, est conservée).
   Future<int> pickFiles() async {
-    final res = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true);
-    if (res == null) return 0;
+    final files = await FilePicker.pickFiles(type: FileType.audio);
+    if (files.isEmpty) return 0;
     var n = 0;
-    for (final f in res.files) {
+    for (final f in files) {
       final path = f.path;
       if (path == null) continue;
       final name = f.name.replaceFirst(RegExp(r'\.[A-Za-z0-9]{2,5}$'), '');
