@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/core/i18n/tr_text.dart';
+import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/features/settings/settings_widgets.dart';
 import 'package:strasse/features/updates/update_controller.dart';
+import 'package:strasse/features/updates/update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Réglages > Mise à jour : version installée, dernière version publiée sur GitHub, notes, téléchargement.
