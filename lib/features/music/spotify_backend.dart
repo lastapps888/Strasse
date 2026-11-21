@@ -354,7 +354,11 @@ class SpotifyBackend implements MusicBackend {
         ];
       case CollectionKind.album:
         final r = await _call('GET', '/me/albums', query: {'limit': 50});
-        return [for (final i in ((r.data as Map)['items'] as List?) ?? const []) if (i is Map && _album(i['album']) case final x?) x];
+        return [
+          for (final i in ((r.data as Map)['items'] as List?) ?? const [])
+            if (i is Map)
+              if (_album(i['album']) case final x?) x,
+        ];
       case CollectionKind.artist:
         final r = await _call('GET', '/me/following', query: {'type': 'artist', 'limit': 50});
         return [for (final a in (((r.data as Map)['artists'] as Map?)?['items'] as List?) ?? const []) if (_artist(a) case final x?) x];
@@ -371,7 +375,11 @@ class SpotifyBackend implements MusicBackend {
         // seules les playlists dont l'utilisateur est propriétaire ou collaborateur renvoient leur contenu.
         try {
           final r = await _call('GET', '/playlists/${c.id}/items', query: {'limit': 100});
-          return [for (final i in ((r.data as Map)['items'] as List?) ?? const []) if (i is Map && _track(i['item'] ?? i['track']) case final x?) x];
+          return [
+            for (final i in ((r.data as Map)['items'] as List?) ?? const [])
+              if (i is Map)
+                if (_track(i['item'] ?? i['track']) case final x?) x,
+          ];
         } on MusicException catch (e) {
           if (e.needsLogin) rethrow;
           throw MusicException('Spotify ne donne pas accès au contenu de cette playlist (réservé aux playlists que vous possédez ou partagez). Vous pouvez tout de même la lancer.');
