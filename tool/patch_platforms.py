@@ -252,8 +252,8 @@ def patch_podfile():
     if os.path.exists(framework):
         info = read(framework)
         info, count = re.subn(
-            r"(<key>MinimumOSVersion</key>\\s*<string>)[^<]+(</string>)",
-            r"\\g<1>14.0\\g<2>",
+            r"(<key>MinimumOSVersion</key>\s*<string>)[^<]+(</string>)",
+            r"\g<1>14.0\g<2>",
             info,
             count=1,
         )
