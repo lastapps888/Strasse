@@ -13,7 +13,7 @@
     <img src="docs/screenshots/download_apk.png" width="150px" alt="Download APK">
   </a>
   <a href="https://github.com/lastapps888/Strasse/releases/">
-    <img src="docs/screenshots/Download_ipa.png" width="170px" alt="Download IPA">
+    <img src="docs/screenshots/Download_ipa.png" width="160px" alt="Download IPA">
   </a>
 </p>
 
