@@ -32,7 +32,9 @@ class NotificationsService {
         requestBadgePermission: false,
         requestSoundPermission: false,
       );
-      await _plugin.initialize(const InitializationSettings(android: android, iOS: ios));
+      await _plugin.initialize(
+        settings: const InitializationSettings(android: android, iOS: ios),
+      );
       _ready = true;
     } catch (_) {
       _ready = false;
@@ -64,17 +66,21 @@ class NotificationsService {
     if (!_ready) return;
     try {
       await _plugin.show(
-        _nextId++,
-        tr(title),
-        tr(body),
-        NotificationDetails(
+        id: _nextId++,
+        title: tr(title),
+        body: tr(body),
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             channel.id,
             tr(channel.label),
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
           ),
-          iOS: const DarwinNotificationDetails(presentAlert: true, presentBadge: false, presentSound: false),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: false,
+            presentSound: false,
+          ),
         ),
       );
     } catch (_) {
