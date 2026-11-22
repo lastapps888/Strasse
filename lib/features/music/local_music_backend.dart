@@ -92,6 +92,79 @@ class LocalMusicBackend implements MusicBackend {
 
   List<MusicTrack> get _all => [..._picked, ..._device];
 
+  Future<void> _ensurePickedLoaded() {
+    if (_pickedLoaded) return Future<void>.value();
+    return _pickedLoadFuture ??= _restorePicked().then((_) {
+      _pickedLoaded = true;
+    }).whenComplete(() {
+      _pickedLoadFuture = null;
+    });
+  }
+
+  Future<Directory> _importDirectory() async {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory(p.join(documents.path, 'Strasse', 'Music', 'Imports'));
+    await directory.create(recursive: true);
+    return directory;
+  }
+
+  Future<void> _restorePicked() async {
+    final preferences = await SharedPreferences.getInstance();
+    final serialized = preferences.getStringList(_pickedLibraryKey) ?? const <String>[];
+    final restored = <MusicTrack>[];
+    var staleEntryFound = false;
+    for (final entry in serialized) {
+      try {
+        final decoded = jsonDecode(entry);
+        if (decoded is! Map<String, dynamic>) {
+          staleEntryFound = true;
+          continue;
+        }
+        final path = decoded['path'];
+        final id = decoded['id'];
+        final title = decoded['title'];
+        if (path is! String || id is! String || title is! String || !await File(path).exists()) {
+          staleEntryFound = true;
+          continue;
+        }
+        restored.add(MusicTrack(
+          id: id,
+          title: title,
+          artist: decoded['artist'] is String ? decoded['artist'] as String : 'Fichier',
+          album: decoded['album'] is String ? decoded['album'] as String : '',
+          durationMs: decoded['durationMs'] is num ? (decoded['durationMs'] as num).toInt() : 0,
+          uri: Uri.file(path).toString(),
+        ));
+      } catch (_) {
+        staleEntryFound = true;
+      }
+    }
+    _picked
+      ..clear()
+      ..addAll(restored);
+    if (staleEntryFound) await _savePicked();
+  }
+
+  Future<void> _savePicked() async {
+    final preferences = await SharedPreferences.getInstance();
+    final entries = <String>[];
+    for (final track in _picked) {
+      final uri = Uri.tryParse(track.uri ?? '');
+      if (uri == null || uri.scheme != 'file') continue;
+      entries.add(jsonEncode({
+        'id': track.id,
+        'title': track.title,
+        'artist': track.artist,
+        'album': track.album,
+        'durationMs': track.durationMs,
+        'path': uri.toFilePath(),
+      }));
+    }
+    final saved = await preferences.setStringList(_pickedLibraryKey, entries);
+    if (!saved) throw const MusicException('Impossible d’enregistrer la bibliothèque musicale importée.');
+  }
+
+
   /// Ajoute des fichiers audio choisis par l'utilisateur. Sur Android, le sélecteur copie les fichiers dans le cache de
   /// l'application : ils sont oubliés au redémarrage (la bibliothèque de l'appareil, elle, est conservée).
   Future<int> pickFiles() async {
