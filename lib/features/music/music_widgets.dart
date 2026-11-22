@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
@@ -18,12 +19,22 @@ class Artwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
-    final fallback = Container(width: size, height: size, color: cs.surfaceContainerHighest, child: Icon(Icons.music_note_rounded, color: cs.onSurfaceVariant, size: size * 0.5));
+    final fallback = Container(
+      width: size,
+      height: size,
+      color: cs.surfaceContainerHighest,
+      child: Icon(Icons.music_note_rounded, color: cs.onSurfaceVariant, size: size * 0.5),
+    );
+    final uri = url == null ? null : Uri.tryParse(url!);
+    final localFile = uri != null && uri.scheme == 'file' ? File.fromUri(uri) : null;
+    final image = localFile != null
+        ? Image.file(localFile, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
+        : url == null
+            ? fallback
+            : Image.network(url!, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback, loadingBuilder: (_, child, progress) => progress == null ? child : fallback);
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: url == null
-          ? fallback
-          : Image.network(url!, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback, loadingBuilder: (_, child, p) => p == null ? child : fallback),
+      child: image,
     );
   }
 }

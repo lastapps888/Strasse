@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +109,35 @@ class LocalMusicBackend implements MusicBackend {
     return directory;
   }
 
+  Future<Directory> _artworkDirectory() async {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory(p.join(documents.path, 'Strasse', 'Music', 'Artwork'));
+    await directory.create(recursive: true);
+    return directory;
+  }
+
+  Future<Map<Object?, Object?>> _readFileMetadata(String path) async {
+    try {
+      return await _channel.invokeMapMethod<Object?, Object?>('metadataForFile', {'path': path}) ?? const {};
+    } on PlatformException {
+      return const {};
+    } on MissingPluginException {
+      return const {};
+    }
+  }
+
+  Future<String?> _saveArtwork(Object? value, String fileId) async {
+    if (value is! Uint8List || value.isEmpty) return null;
+    try {
+      final directory = await _artworkDirectory();
+      final file = File(p.join(directory.path, fileId + '.jpg'));
+      await file.writeAsBytes(value, flush: true);
+      return Uri.file(file.path).toString();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   Future<void> _restorePicked() async {
     final preferences = await SharedPreferences.getInstance();
     final serialized = preferences.getStringList(_pickedLibraryKey) ?? const <String>[];
@@ -133,6 +163,7 @@ class LocalMusicBackend implements MusicBackend {
           artist: decoded['artist'] is String ? decoded['artist'] as String : 'Fichier',
           album: decoded['album'] is String ? decoded['album'] as String : '',
           durationMs: decoded['durationMs'] is num ? (decoded['durationMs'] as num).toInt() : 0,
+          artUrl: decoded['artUrl'] is String && await File.fromUri(Uri.parse(decoded['artUrl'] as String)).exists() ? decoded['artUrl'] as String : null,
           uri: Uri.file(path).toString(),
         ));
       } catch (_) {
@@ -157,6 +188,7 @@ class LocalMusicBackend implements MusicBackend {
         'artist': track.artist,
         'album': track.album,
         'durationMs': track.durationMs,
+        if (track.artUrl != null) 'artUrl': track.artUrl,
         'path': uri.toFilePath(),
       }));
     }
@@ -173,36 +205,61 @@ class LocalMusicBackend implements MusicBackend {
     if (files.isEmpty) return 0;
     final directory = await _importDirectory();
     final imported = <MusicTrack>[];
+    final copiedFiles = <File>[];
+    final artworkFiles = <File>[];
     final stamp = DateTime.now().microsecondsSinceEpoch;
     var index = 0;
+
     for (final selected in files) {
       final sourcePath = selected.path;
       if (sourcePath == null || sourcePath.isEmpty) {
         index++;
         continue;
       }
+
       final source = File(sourcePath);
       if (!await source.exists()) {
         index++;
         continue;
       }
+
       final originalName = p.basename(selected.name);
       final safeName = originalName.replaceAll(RegExp(r'[^A-Za-z0-9._ -]'), '_');
+      final id = 'file' + stamp.toString() + '_' + index.toString();
       final destinationPath = p.join(directory.path, stamp.toString() + '_' + index.toString() + '_' + safeName);
+
       try {
         final copied = await source.copy(destinationPath);
-        final title = p.basenameWithoutExtension(originalName).trim();
+        copiedFiles.add(copied);
+        final metadata = await _readFileMetadata(copied.path);
+        final rawTitle = metadata['title'];
+        final rawArtist = metadata['artist'];
+        final rawAlbum = metadata['album'];
+        final rawDuration = metadata['durationMs'];
+        final title = rawTitle is String && rawTitle.trim().isNotEmpty
+            ? rawTitle.trim()
+            : p.basenameWithoutExtension(originalName).trim();
+        final artUrl = await _saveArtwork(metadata['artwork'], id);
+        if (artUrl != null) artworkFiles.add(File.fromUri(Uri.parse(artUrl)));
+
         imported.add(MusicTrack(
-          id: 'file' + stamp.toString() + '_' + index.toString(),
+          id: id,
           title: title.isEmpty ? 'Fichier audio' : title,
-          artist: 'Fichier',
+          artist: rawArtist is String && rawArtist.trim().isNotEmpty ? rawArtist.trim() : 'Fichier',
+          album: rawAlbum is String ? rawAlbum.trim() : '',
+          durationMs: rawDuration is num ? rawDuration.toInt() : 0,
+          artUrl: artUrl,
           uri: Uri.file(copied.path).toString(),
         ));
       } on FileSystemException {
         // Un fichier inaccessible ne doit pas empêcher l'importation des autres.
+      } on PlatformException {
+        // Une erreur d'extraction de métadonnées ne doit pas empêcher l'importation du fichier.
       }
       index++;
     }
+
+
     if (imported.isEmpty) {
       throw const MusicException('Aucun des fichiers sélectionnés n’a pu être copié dans la bibliothèque Strasse.');
     }
@@ -214,14 +271,18 @@ class LocalMusicBackend implements MusicBackend {
       _picked
         ..clear()
         ..addAll(previous);
-      for (final track in imported) {
-        final uri = Uri.tryParse(track.uri ?? '');
-        if (uri != null && uri.scheme == 'file') {
-          try {
-            await File.fromUri(uri).delete();
-          } on FileSystemException {
-            // Le nettoyage ne doit pas masquer l'erreur de sauvegarde.
-          }
+      for (final file in copiedFiles) {
+        try {
+          await file.delete();
+        } on FileSystemException {
+          // Le nettoyage ne doit pas masquer l'erreur de sauvegarde.
+        }
+      }
+      for (final file in artworkFiles) {
+        try {
+          await file.delete();
+        } on FileSystemException {
+          // Le nettoyage ne doit pas masquer l'erreur de sauvegarde.
         }
       }
       rethrow;

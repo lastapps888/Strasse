@@ -1,4 +1,5 @@
 import Flutter
+import AVFoundation
 import MediaPlayer
 import UIKit
 import UserNotifications
@@ -75,6 +76,47 @@ import MusicKit
             ])
           }
           DispatchQueue.main.async { result(out) }
+        }
+      case "metadataForFile":
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String,
+              !path.isEmpty else {
+          result(FlutterError(code: "invalid", message: "Chemin du fichier manquant.", details: nil))
+          return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+          let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+          var metadata: [String: Any] = [:]
+          for item in asset.commonMetadata {
+            guard let key = item.commonKey else { continue }
+            switch key {
+            case .commonKeyTitle:
+              if let value = item.stringValue, !value.isEmpty { metadata["title"] = value }
+            case .commonKeyArtist:
+              if let value = item.stringValue, !value.isEmpty { metadata["artist"] = value }
+            case .commonKeyAlbumName:
+              if let value = item.stringValue, !value.isEmpty { metadata["album"] = value }
+            case .commonKeyArtwork:
+              if let data = item.dataValue, let image = UIImage(data: data) {
+                let maxDimension: CGFloat = 512
+                let longest = max(image.size.width, image.size.height)
+                let scale = longest > maxDimension ? maxDimension / longest : 1
+                let size = CGSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
+                let renderer = UIGraphicsImageRenderer(size: size)
+                let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+                if let jpeg = resized.jpegData(compressionQuality: 0.84) {
+                  metadata["artwork"] = FlutterStandardTypedData(bytes: jpeg)
+                }
+              }
+            default:
+              break
+            }
+          }
+          let seconds = asset.duration.seconds
+          if seconds.isFinite && seconds > 0 {
+            metadata["durationMs"] = Int(seconds * 1000)
+          }
+          DispatchQueue.main.async { result(metadata) }
         }
       case "listPlaylists":
         DispatchQueue.global(qos: .userInitiated).async {
