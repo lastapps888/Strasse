@@ -21,6 +21,9 @@ class AppConfig {
     this.contact = '',
   });
 
+  static const String defaultSupabaseUrl = 'https://msgaoprkocgbsirbjaab.supabase.co';
+  static const String defaultSupabasePublishableKey = 'sb_publishable_3TXETm0ckp57A6TQfyJ-eg_dD_EkyOd';
+
   static const AppConfig fromEnvironment = AppConfig(
     env: String.fromEnvironment('STRASSE_ENV', defaultValue: 'dev'),
     apiUrl: String.fromEnvironment('STRASSE_API_URL'),
@@ -32,8 +35,8 @@ class AppConfig {
     geocoderUrl: String.fromEnvironment('STRASSE_GEOCODER_URL'),
     otpUrl: String.fromEnvironment('STRASSE_OTP_URL'),
     overpassUrl: String.fromEnvironment('STRASSE_OVERPASS_URL'),
-    supabaseUrl: String.fromEnvironment('STRASSE_SUPABASE_URL'),
-    supabaseAnonKey: String.fromEnvironment('STRASSE_SUPABASE_ANON_KEY'),
+    supabaseUrl: String.fromEnvironment('STRASSE_SUPABASE_URL', defaultValue: defaultSupabaseUrl),
+    supabaseAnonKey: String.fromEnvironment('STRASSE_SUPABASE_ANON_KEY', defaultValue: defaultSupabasePublishableKey),
     openTripMapKey: String.fromEnvironment('STRASSE_OPENTRIPMAP_KEY'),
     spotifyClientId: String.fromEnvironment('STRASSE_SPOTIFY_CLIENT_ID'),
     contact: String.fromEnvironment('STRASSE_CONTACT'),
@@ -52,7 +55,7 @@ class AppConfig {
   /// Point d'accès Overpass (…/api/interpreter) utilisé pour préparer les itinéraires hors connexion.
   final String overpassUrl;
 
-  /// Projet Supabase du développeur : adresse et clé publique « anon » (jamais la clé « service_role »).
+  /// Projet Supabase Strasse : URL et clé publique anon/publishable. Une clé secrète ne doit jamais être intégrée au client.
   final String supabaseUrl;
   final String supabaseAnonKey;
 
