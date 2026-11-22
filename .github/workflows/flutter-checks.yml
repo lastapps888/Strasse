@@ -30,6 +30,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Test native platform preparation
+        run: |
+          python3 -m py_compile tool/patch_platforms.py
+          python3 -m unittest discover -s tool -p 'test_*.py'
+
       - name: Resolve dependencies
         run: flutter pub get
 

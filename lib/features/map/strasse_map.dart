@@ -848,6 +848,7 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AppSettings>(settingsProvider, (previous, next) {
+      if (previous?.showSatellite == next.showSatellite) return;
       final source = ref.read(providerResolverProvider).mapSource();
       _controller.setExternalSatelliteEnabled(source.styleUrl != null && next.showSatellite);
     });
