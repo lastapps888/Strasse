@@ -478,7 +478,7 @@ class MapStyleBuilder {
         'tiles': ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'],
         'tileSize': 256,
         'maxzoom': 13,
-        'attribution': 'EOxCloudless 2016 par EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017, CC BY 4.0)',
+        'attribution': 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
       };
       sources['sat-fr'] = {
         'type': 'raster',
