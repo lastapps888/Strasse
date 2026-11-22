@@ -20,7 +20,8 @@ dependencies:
   maplibre_gl: ^0.27.1
   geolocator: ^13.0.1
   flutter_tts: ^4.0.2
-  wakelock_plus: ^1.8.2
+  # 1.8.1 introduced dbus ^0.8, incompatible with connectivity_plus 6.x (nm/dbus 0.7).
+  wakelock_plus: 1.8.0
 
   # Réseau et stockage
   dio: ^5.7.0
