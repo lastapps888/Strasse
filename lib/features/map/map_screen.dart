@@ -570,7 +570,7 @@ class _LayersSheet extends ConsumerWidget {
             SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
             SwitchRow(
               title: 'Satellite',
-              subtitle: satelliteAvailable ? 'Imagerie satellite mondiale et orthophotos IGN en France' : 'Disponible avec le style Strasse, pas avec le style fournisseur sélectionné',
+              subtitle: satelliteAvailable ? 'Imagerie mondiale Sentinel-2 (2016) et orthophotos IGN en France' : 'Disponible avec le style Strasse, pas avec le style fournisseur sélectionné',
               value: satelliteAvailable && s.showSatellite,
               onChanged: satelliteAvailable ? (v) => ctrl.update((x) => x.copyWith(showSatellite: v)) : null,
             ),
