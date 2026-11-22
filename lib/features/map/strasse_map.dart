@@ -739,7 +739,6 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider);
     final config = ref.watch(appConfigProvider);
     final style = _buildStyle(context);
     final hasTiles = ref.watch(providerResolverProvider).mapSource().available;
