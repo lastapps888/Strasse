@@ -78,3 +78,50 @@ jobs:
           name: strasse-android-apk
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
+
+  changed-files-archive:
+    name: Archive modified source files
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create archive with original directory structure
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          base = os.environ["PR_BASE_SHA"]
+          raw_paths = subprocess.check_output(
+              ["git", "diff", "--name-only", "--diff-filter=ACMRT", "-z", f"{base}...HEAD"]
+          )
+          paths = [Path(item.decode("utf-8")) for item in raw_paths.split(b"\\0") if item]
+          archive = Path("build/Strasse-1.0.0-beta6-modified-files.zip")
+          archive.parent.mkdir(parents=True, exist_ok=True)
+          included = []
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+              for path in paths:
+                  if path.is_file():
+                      output.write(path, arcname=path.as_posix())
+                      included.append(path.as_posix())
+          if not included:
+              raise SystemExit("No modified source files were found for the archive.")
+          print(f"Archived {len(included)} modified source files:")
+          for path in included:
+              print(path)
+          PY
+
+      - name: Upload modified source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Strasse-1.0.0-beta6-modified-files
+          path: build/Strasse-1.0.0-beta6-modified-files.zip
+          if-no-files-found: error
