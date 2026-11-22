@@ -98,7 +98,7 @@ def patch_native_ios():
     s = read(pbx)
     alternate_value = '"%s"' % " ".join(names)
     alternate_pattern = re.compile(
-        r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\\s*=\\s*[^;]*;",
+        r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\s*=\s*[^;]*;",
         re.M,
     )
     if alternate_pattern.search(s):
@@ -108,13 +108,13 @@ def patch_native_ios():
         )
     else:
         anchor_pattern = re.compile(
-            r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_APPICON_NAME\\s*=\\s*AppIcon;",
+            r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_APPICON_NAME\s*=\s*AppIcon;",
             re.M,
         )
         s, count = anchor_pattern.subn(
             lambda m: (
                 m.group(0)
-                + "\\n"
+                + "\n"
                 + m.group("indent")
                 + f"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = {alternate_value};"
             ),
@@ -130,16 +130,16 @@ def patch_native_ios():
     for index, line in enumerate(lines):
         normalized.append(line)
         match = re.match(
-            r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\\s*=\\s*[^;]*;",
+            r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\s*=\s*[^;]*;",
             line,
         )
         if match:
             following = lines[index + 1] if index + 1 < len(lines) else ""
             if not re.match(
-                r"^[ \\t]*ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS\\s*=",
+                r"^[ \t]*ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS\s*=",
                 following,
             ):
-                newline = "\\r\\n" if line.endswith("\\r\\n") else "\\n"
+                newline = "\r\n" if line.endswith("\r\n") else "\n"
                 normalized.append(
                     f"{match.group('indent')}ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;{newline}"
                 )
