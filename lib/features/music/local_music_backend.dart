@@ -279,7 +279,10 @@ class LocalMusicBackend implements MusicBackend {
   }
 
   /// Tous les titres (onglet « Titres »).
-  List<MusicTrack> allTracks() => _all;
+  Future<List<MusicTrack>> allTracks() async {
+    await _ensurePickedLoaded();
+    return _all;
+  }
 
   @override
   Future<List<MusicTrack>> tracksOf(MusicCollection c) async {
