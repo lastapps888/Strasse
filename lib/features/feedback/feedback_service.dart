@@ -20,6 +20,14 @@ class FeedbackService {
   static const int minLength = 10;
   static const int maxLength = 4000;
 
+  /// FormSubmit peut répondre HTTP 200 même lorsqu'il refuse la demande.
+  /// La confirmation n'est autorisée qu'avec son indicateur JSON de réussite explicite.
+  static bool responseAccepted(int? status, Object? data) {
+    if (status == null || status < 200 || status >= 300 || data is! Map) return false;
+    final success = data['success'];
+    return success == true || success == 'true';
+  }
+
   /// « Feedback 08/11/2026 » : le titre est toujours le mot Feedback suivi de la date d'envoi.
   static String subject(DateTime now) {
     String two(int v) => v.toString().padLeft(2, '0');
@@ -59,8 +67,7 @@ class FeedbackService {
       );
       final status = r.statusCode ?? 0;
       final data = r.data;
-      final ok = status >= 200 && status < 300 && !(data is Map && (data['success'] == 'false' || data['success'] == false));
-      if (!ok) {
+      if (!responseAccepted(status, data)) {
         final msg = data is Map ? data['message']?.toString() : null;
         throw Failure(
           FailureKind.server,
