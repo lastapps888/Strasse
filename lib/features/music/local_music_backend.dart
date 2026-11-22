@@ -169,7 +169,7 @@ class LocalMusicBackend implements MusicBackend {
   /// Les fichiers importés restent disponibles après fermeture de Strasse et redémarrage du téléphone.
   Future<int> pickFiles() async {
     await _ensurePickedLoaded();
-    final files = await FilePicker.pickFiles(type: FileType.audio, allowMultiple: true);
+    final files = await FilePicker.pickFiles(type: FileType.audio);
     if (files.isEmpty) return 0;
     final directory = await _importDirectory();
     final imported = <MusicTrack>[];
