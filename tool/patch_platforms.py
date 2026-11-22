@@ -271,7 +271,7 @@ def patch_podfile():
         s2 = "platform :ios, '15.0'\n" + s
     write(path, s2)
 
-    # file_picker >=12 exige iOS 14 : aligner aussi la cible de l'application générée.
+    # Xcode 27 exige iOS 15 : garder le Podfile, Runner et Flutter.framework alignés.
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if os.path.exists(pbx):
         project = read(pbx)

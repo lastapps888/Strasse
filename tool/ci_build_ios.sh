@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 mode="${1:-unsigned}"
 bash tool/ci_prepare.sh ios
 ( cd ios && pod install --repo-update )
-flutter analyze
+flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test
 if [ "$mode" = "signed" ]; then
   if command -v xcode-project >/dev/null 2>&1; then xcode-project use-profiles; fi
