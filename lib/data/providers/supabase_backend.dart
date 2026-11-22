@@ -310,8 +310,7 @@ class SupabaseBackend implements AccountBackend {
 
   @override
   Future<IncidentsResult> incidents(GeoBounds bounds) async => (available: false, provider: null, incidents: <ExternalIncident>[]);
-}
-), '') {
+}), '') {
     final options = BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 8),
