@@ -45,7 +45,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   double _bearing = 0;
   CancelToken? _transitCancel;
   bool _transitErrorShown = false;
-  bool _transitZoomShown = false;
   CancelToken? _poiCancel;
   bool _poiErrorShown = false;
 
@@ -117,13 +116,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (res.zoomHint) {
       c.setExtraLines(const []);
       c.setTransitStops(const []);
-      if (!_transitZoomShown) {
-        _transitZoomShown = true;
-        showMessage(context, 'Zoomez sur la carte pour afficher les lignes et arrêts de transport en commun.');
-      }
       return;
     }
-    _transitZoomShown = false;
     c.setExtraLines(TransitOverlay.polylines(res.lines));
     c.setTransitStops(TransitOverlay.pins(res.stops, (s) => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => StopSheet(stop: s))));
     if (res.error != null && !_transitErrorShown) {
@@ -171,8 +165,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     ]);
     if (error != null && all.isEmpty && !_poiErrorShown) {
       final f = toFailure(error);
-      if (f.code != 'zoom_in') _poiErrorShown = true;
-      showMessage(context, f.message);
+      // Un niveau de zoom insuffisant est un état normal de la carte, pas une erreur à notifier en boucle.
+      if (f.code != 'zoom_in') {
+        _poiErrorShown = true;
+        showMessage(context, f.message);
+      }
     }
   }
 
@@ -369,7 +366,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5), builder: (_) => const _LayersSheet())),
+                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9), builder: (_) => const _LayersSheet())),
                 ],
               ),
               if (!online)
@@ -551,6 +548,7 @@ class _LayersSheet extends ConsumerWidget {
             ),
             const SectionTitle('Détails'),
             SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
+            SwitchRow(title: 'Satellite', subtitle: 'Imagerie satellite lorsque disponible', value: s.showSatellite, onChanged: (v) => ctrl.update((x) => x.copyWith(showSatellite: v))),
             SwitchRow(title: 'Lieux d\'intérêt', value: s.showPoi, onChanged: (v) => ctrl.update((x) => x.copyWith(showPoi: v))),
             SwitchRow(title: 'Transports en commun', subtitle: 'Lignes, arrêts et horaires ; zoomez pour les voir', value: s.showTransit, onChanged: (v) => ctrl.update((x) => x.copyWith(showTransit: v))),
             SwitchRow(title: 'Hôtels', subtitle: 'Zoomez pour les afficher', value: s.showHotels, onChanged: (v) => ctrl.update((x) => x.copyWith(showHotels: v))),
