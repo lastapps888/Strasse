@@ -10,6 +10,7 @@ import 'package:strasse/features/feedback/feedback_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strasse/features/assistant/assistant_page.dart';
 import 'package:strasse/features/offline_maps/offline_page.dart';
+import 'package:strasse/features/settings/storage_page.dart';
 import 'package:strasse/features/privacy/privacy_page.dart';
 import 'package:strasse/features/settings/about_page.dart';
 import 'package:strasse/features/settings/services_page.dart';
@@ -80,6 +81,7 @@ class SettingsHome extends ConsumerWidget {
           tile(Icons.apps_rounded, 'Icône de l\'application', 'Choisir parmi 13 icônes', const AppIconPage()),
           tile(Icons.directions_car_outlined, 'Véhicule et vitesse', 'Type, icône sur la carte, alerte de vitesse', const VehicleSettingsPage()),
           tile(Icons.download_for_offline_outlined, 'Cartes hors connexion', regions.isEmpty ? 'Aucune zone téléchargée' : '${regions.where((r) => r.isComplete).length} zone(s) disponible(s)', const OfflinePage()),
+          tile(Icons.storage_outlined, 'Stockage', 'Gérer le cache et les données téléchargées', const StorageManagementPage()),
           if (s.assistantEnabled) tile(Icons.auto_awesome_outlined, 'Assistant', 'Demandes en langage courant', const AssistantPage()),
           tile(Icons.notifications_outlined, 'Notifications', 'Toutes facultatives', const NotificationsSettingsPage()),
           tile(Icons.privacy_tip_outlined, 'Confidentialité et données', 'Historique, données envoyées, effacement', const PrivacyPage()),
