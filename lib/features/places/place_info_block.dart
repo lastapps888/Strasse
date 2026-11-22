@@ -8,8 +8,8 @@ import 'package:strasse/features/places/mapillary_viewer_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Photo (Wikimedia Commons, avec auteur et licence) et résumé (Wikipédia) d'un lieu nommé, si un article correspond
-/// vraiment à ce lieu. Les notes et avis d'utilisateurs n'existent dans aucune source ouverte : le bouton « Notes et avis »
-/// ouvre, à la demande, la fiche du lieu dans le service de cartes de l'utilisateur ; rien n'est envoyé avant ce geste.
+/// vraiment à ce lieu. Les données ouvertes ne fournissent pas de système d'avis d'utilisateurs ; Strasse ne présente
+/// donc pas de fausses notes ni de faux commentaires. La vue Mapillary est ouverte séparément à la demande.
 class PlaceInfoBlock extends ConsumerWidget {
   const PlaceInfoBlock({super.key, required this.place, this.showOwnPhoto = true});
   final Place place;

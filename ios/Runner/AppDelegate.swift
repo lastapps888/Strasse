@@ -144,6 +144,15 @@ final class MusicKitBridge {
         case "authorize":
           let status = await MusicAuthorization.request()
           result(status == .authorized ? "authorized" : String(describing: status))
+        case "status":
+          let status = MusicAuthorization.currentStatus
+          let canPlay: Bool
+          if status == .authorized {
+            canPlay = try await MusicSubscription.current.canPlayCatalogContent
+          } else {
+            canPlay = false
+          }
+          result(["authorized": status == .authorized, "canPlay": canPlay])
         case "canPlay":
           let sub = try await MusicSubscription.current
           result(sub.canPlayCatalogContent)

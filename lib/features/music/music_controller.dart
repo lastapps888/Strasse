@@ -146,6 +146,8 @@ class MusicController extends StateNotifier<MusicState> {
     if (reason != null) return;
     // Spotify : restaure la session mémorisée sans rien demander.
     if (b is SpotifyBackend && await b.restore()) state = state.copyWith(connected: true);
+    // Apple Music : relit l'autorisation système déjà donnée et le statut d'abonnement, sans nouvel écran.
+    if (b is AppleMusicBackend && await b.restore()) state = state.copyWith(connected: true);
     if (connect && !state.connected && s != MusicSource.spotify && s != MusicSource.appleMusic) await this.connect();
     if (state.connected) _startTimer();
   }
