@@ -53,6 +53,7 @@ class MusicState {
   const MusicState({
     this.source,
     this.connected = false,
+    this.catalogAvailable = false,
     this.busy = false,
     this.snapshot = PlaybackSnapshot.idle,
     this.snapshotAt,
@@ -63,6 +64,8 @@ class MusicState {
   });
 
   final MusicSource? source;
+  /// Catalogue public consultable sans authentification ni lecture active.
+  final bool catalogAvailable;
   final bool connected;
   final bool busy;
   final PlaybackSnapshot snapshot;
@@ -88,6 +91,7 @@ class MusicState {
     MusicSource? source,
     bool clearSource = false,
     bool? connected,
+    bool? catalogAvailable,
     bool? busy,
     PlaybackSnapshot? snapshot,
     DateTime? snapshotAt,
@@ -101,6 +105,7 @@ class MusicState {
       MusicState(
         source: clearSource ? null : (source ?? this.source),
         connected: connected ?? this.connected,
+        catalogAvailable: catalogAvailable ?? this.catalogAvailable,
         busy: busy ?? this.busy,
         snapshot: snapshot ?? this.snapshot,
         snapshotAt: snapshotAt ?? this.snapshotAt,
@@ -141,14 +146,20 @@ class MusicController extends StateNotifier<MusicState> {
     _timer?.cancel();
     final b = _backends.of(s);
     final reason = await b.unavailableReason();
-    state = MusicState(source: s, availability: state.availability, unavailable: reason, connected: b.connected);
+    state = MusicState(
+      source: s,
+      availability: state.availability,
+      unavailable: reason,
+      connected: b.connected,
+      catalogAvailable: s == MusicSource.deezer && reason == null,
+    );
     await _ref.read(settingsProvider.notifier).update((x) => x.copyWith(musicSource: s.name));
     if (reason != null) return;
     // Spotify : restaure la session mémorisée sans rien demander.
     if (b is SpotifyBackend && await b.restore()) state = state.copyWith(connected: true);
     // Apple Music : relit l'autorisation système déjà donnée et le statut d'abonnement, sans nouvel écran.
     if (b is AppleMusicBackend && await b.restore()) state = state.copyWith(connected: true);
-    if (connect && !state.connected && s != MusicSource.spotify && s != MusicSource.appleMusic) await this.connect();
+    if (connect && !state.connected && s != MusicSource.spotify && s != MusicSource.appleMusic && s != MusicSource.deezer) await this.connect();
     if (state.connected) _startTimer();
   }
 
@@ -230,7 +241,12 @@ class MusicController extends StateNotifier<MusicState> {
   Future<void> _command(Future<void> Function(MusicBackend b) f) async {
     final b = backend;
     if (b == null) return;
-    await _guard(() => f(b));
+    final succeeded = await _guard(() => f(b));
+    // Deezer has no account session: connected tracks only an actually started preview player.
+    if (succeeded && state.source == MusicSource.deezer && b.connected) {
+      state = state.copyWith(connected: true);
+      _startTimer();
+    }
     await refresh();
   }
 

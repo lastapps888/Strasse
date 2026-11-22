@@ -13,6 +13,7 @@ No private keys should be included within the application (as a mobile app is co
 | `STRASSE_GEOCODER_URL` | Nominatim-compatible server | **yes** (for search) |
 | `STRASSE_OTP_URL` | OpenTripPlanner (powered by GTFS data) | no (if omitted: no public transit) |
 | `STRASSE_OVERPASS_URL` | Overpass API endpoint (`…/api/interpreter`) | no (for downloading offline routes) |
+| `STRASSE_SPOTIFY_CLIENT_ID` | Spotify PKCE Client ID, supplied by the app publisher at build time (never requested from the user) | no (Spotify remains disabled when absent) |
 | `STRASSE_API_URL` | Strasse backend (accounts, synchronization, reports, traffic) | no |
 
 What you need to host or select:
@@ -20,6 +21,10 @@ What you need to host or select:
 - **Nominatim**: Self-hosted, or a service with a usage policy that permits such application use. The public `nominatim.openstreetmap.org` server prohibits intensive application-based usage; do not use it in a production environment.
 - **Overpass**: A public instance is suitable for small, occasional data retrievals; please adhere to its usage policy.
 - **OpenStreetMap Data**: © OpenStreetMap contributors (ODbL). Attribution is displayed within the application.
+
+## Spotify
+
+The Spotify Client ID is public application configuration and must be supplied by the Strasse publisher at build time through `STRASSE_SPOTIFY_CLIENT_ID`; end users must not be asked to create a developer app or enter this value. Without it, Spotify stays disabled. Development-mode apps are limited to 5 allowlisted Spotify accounts and the app owner must have Premium. Public extended quota is subject to Spotify approval; for new applications Spotify only accepts organizations that meet its eligibility requirements. A Client ID alone does not grant public access.
 
 ## Backend
 Variables in `backend/.env.example` (secrets to be generated, `DATABASE_URL`, `REDIS_URL`, `ADMIN_TOKEN`, `TRAFFIC_PROVIDER`, `TOMTOM_API_KEY`, `SYNC_ENCRYPTION_KEY`, CORS). If no traffic provider is configured, no traffic data will be displayed (no data is fabricated).

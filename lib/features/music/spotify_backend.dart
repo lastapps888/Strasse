@@ -69,7 +69,7 @@ class SpotifyBackend implements MusicBackend {
   Future<bool> isAvailable() async => clientId.isNotEmpty;
 
   @override
-  Future<String?> unavailableReason() async => clientId.isEmpty ? 'Identifiant client Spotify non renseigné (Réglages > Services > Spotify > Identifiants).' : null;
+  Future<String?> unavailableReason() async => clientId.isEmpty ? 'Spotify n’est pas activé dans cette version : l’éditeur de Strasse doit configurer le Client ID de l’application et respecter les conditions d’accès Spotify.' : null;
 
   Future<void> _load() async {
     if (_loaded) return;
