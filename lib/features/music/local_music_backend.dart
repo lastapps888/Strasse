@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strasse/features/music/audio_engine.dart';
 import 'package:strasse/features/music/music_backend.dart';
 import 'package:strasse/features/music/music_models.dart';
@@ -18,6 +22,9 @@ class LocalMusicBackend implements MusicBackend {
   bool _connected = false;
   List<MusicTrack> _device = const [];
   final List<MusicTrack> _picked = [];
+  static const String _pickedLibraryKey = 'strasse.music.imported_files.v1';
+  bool _pickedLoaded = false;
+  Future<void>? _pickedLoadFuture;
 
   @override
   MusicSource get source => MusicSource.local;
@@ -47,6 +54,7 @@ class LocalMusicBackend implements MusicBackend {
 
   @override
   Future<bool> connect() async {
+    await _ensurePickedLoaded();
     if (!await _permission()) {
       throw const MusicException('Autorisez l\'accès à la musique dans les réglages du système pour lister les titres. Vous pouvez aussi choisir des fichiers.');
     }
