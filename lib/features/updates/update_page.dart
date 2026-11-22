@@ -136,21 +136,53 @@ class _UpdatePageState extends ConsumerState<UpdatePage> {
   List<Widget> _ios(BuildContext context, UpdateState st) {
     final r = st.release!;
     final cs = context.cs;
+    final controller = ref.read(updateProvider.notifier);
     return [
-      if (r.ipaUrl != null)
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: FilledButton.icon(onPressed: () => _open(r.ipaUrl!), icon: const Icon(Icons.download_rounded), label: const Text('Télécharger l\'IPA'))),
-      if (r.ipaUrl == null) Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text('Cette version ne contient pas de fichier IPA : ouvrez la page GitHub.', style: TextStyle(color: cs.error))),
+      if (r.ipaUrl != null && st.phase == UpdatePhase.downloading)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LinearProgressIndicator(value: st.progress == 0 ? null : st.progress),
+            const SizedBox(height: 6),
+            Text('Téléchargement ' + (st.progress * 100).round().toString() + ' %'),
+            TextButton(onPressed: controller.cancelDownload, child: const Text('Annuler')),
+          ]),
+        )
+      else if (r.ipaUrl != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: FilledButton.icon(
+            onPressed: controller.downloadIpa,
+            icon: const Icon(Icons.download_rounded),
+            label: Text(st.phase == UpdatePhase.downloaded
+                ? 'Télécharger à nouveau l’IPA'
+                : 'Télécharger l’IPA' + (r.ipaSize == null ? '' : ' (' + formatBytes(r.ipaSize!) + ')')),
+          ),
+        ),
+      if (st.phase == UpdatePhase.downloaded && st.ipaPath != null)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Text(
+            'IPA vérifié et enregistré dans Fichiers > Sur mon iPhone > Strasse > Updates. Ouvrez-le ensuite avec votre outil de sideloading.',
+            style: TextStyle(fontSize: 13),
+          ),
+        ),
+      if (r.ipaUrl == null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text('Cette version ne contient pas de fichier IPA : ouvrez la page GitHub.', style: TextStyle(color: cs.error)),
+        ),
       TextButton(onPressed: () => _open(r.pageUrl), child: const Text('Voir la version sur GitHub')),
       const SectionTitle('Installer sur iPhone / iPad'),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),
         child: Text(
-          'Apple n\'autorise pas une application installée hors App Store à se mettre à jour toute seule : l\'installation reste manuelle.\n\n'
-          '1. Téléchargez le fichier .ipa (bouton ci-dessus), sur l\'iPhone ou sur votre ordinateur.\n'
-          '2. Ouvrez-le avec AltStore, SideStore (iPhone) ou Sideloadly (ordinateur), connecté à votre identifiant Apple.\n'
-          '3. Lancez l\'installation : la nouvelle version remplace l\'ancienne en gardant vos données.\n'
-          '4. Si iOS le demande : Réglages > Général > VPN et gestion de l\'appareil, puis faites confiance à votre profil développeur.\n\n'
-          'Avec un identifiant Apple gratuit, l\'application doit être réinstallée tous les 7 jours (AltStore / SideStore le font automatiquement).',
+          'Apple n’autorise pas une application installée hors App Store à se mettre à jour toute seule : l’installation reste manuelle.\n\n'
+          '1. Téléchargez le fichier .ipa dans Fichiers.\n'
+          '2. Ouvrez-le avec SideStore, AltStore ou Sideloadly, connecté à votre identifiant Apple.\n'
+          '3. Lancez l’installation : la nouvelle version remplace l’ancienne en gardant vos données.\n'
+          '4. Si iOS le demande : Réglages > Général > VPN et gestion de l’appareil, puis faites confiance à votre profil développeur.\n\n'
+          'Avec un identifiant Apple gratuit, la signature doit être renouvelée régulièrement ; SideStore ou AltStore peuvent automatiser ce renouvellement.',
           style: TextStyle(fontSize: 13.5),
         ),
       ),

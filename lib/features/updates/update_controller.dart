@@ -8,10 +8,10 @@ import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/features/notifications/notifications_service.dart';
 import 'package:strasse/features/updates/update_service.dart';
 
-enum UpdatePhase { idle, checking, downloading, readyToInstall, error }
+enum UpdatePhase { idle, checking, downloading, readyToInstall, downloaded, error }
 
 class UpdateState {
-  const UpdateState({this.installed = '', this.release, this.phase = UpdatePhase.idle, this.progress = 0, this.message, this.checkedAt, this.seen = false, this.apkPath});
+  const UpdateState({this.installed = '', this.release, this.phase = UpdatePhase.idle, this.progress = 0, this.message, this.checkedAt, this.seen = false, this.apkPath, this.ipaPath});
   final String installed;
   final AppRelease? release;
   final UpdatePhase phase;
@@ -22,11 +22,12 @@ class UpdateState {
   /// Vrai quand l'utilisateur a déjà ouvert l'écran de cette version (le badge disparaît).
   final bool seen;
   final String? apkPath;
+  final String? ipaPath;
 
   bool get available => release != null && installed.isNotEmpty && compareVersions(release!.version, installed) > 0;
   bool get showBadge => available && !seen;
 
-  UpdateState copyWith({String? installed, AppRelease? release, bool clearRelease = false, UpdatePhase? phase, double? progress, String? message, bool clearMessage = false, DateTime? checkedAt, bool? seen, String? apkPath}) => UpdateState(
+  UpdateState copyWith({String? installed, AppRelease? release, bool clearRelease = false, UpdatePhase? phase, double? progress, String? message, bool clearMessage = false, DateTime? checkedAt, bool? seen, String? apkPath, String? ipaPath}) => UpdateState(
         installed: installed ?? this.installed,
         release: clearRelease ? null : (release ?? this.release),
         phase: phase ?? this.phase,
@@ -35,6 +36,7 @@ class UpdateState {
         checkedAt: checkedAt ?? this.checkedAt,
         seen: seen ?? this.seen,
         apkPath: apkPath ?? this.apkPath,
+        ipaPath: ipaPath ?? this.ipaPath,
       );
 }
 
@@ -68,7 +70,7 @@ class UpdateController extends StateNotifier<UpdateState> {
     if (!force && last != null && DateTime.now().difference(last) < _every && state.release != null) return;
     state = state.copyWith(installed: installed, phase: UpdatePhase.checking, clearMessage: true);
     try {
-      final r = await _ref.read(updateServiceProvider).latest();
+      final r = await _ref.read(updateServiceProvider).latest(installedVersion: installed);
       if (!mounted) return;
       await prefs.setUpdateChecked(DateTime.now());
       final seen = r != null && prefs.updateSeen == r.version;
@@ -128,6 +130,31 @@ class UpdateController extends StateNotifier<UpdateState> {
       state = state.copyWith(phase: UpdatePhase.readyToInstall, clearMessage: true);
     } catch (e) {
       state = state.copyWith(phase: UpdatePhase.error, message: e is UpdateException ? e.message : '$e');
+    }
+  }
+
+  /// iOS : télécharge un IPA vérifié, sans tenter de l'installer automatiquement.
+  Future<void> downloadIpa() async {
+    final release = state.release;
+    if (release == null || !Platform.isIOS || release.ipaUrl == null) return;
+    _cancel = CancelToken();
+    state = state.copyWith(phase: UpdatePhase.downloading, progress: 0, clearMessage: true);
+    try {
+      final path = await _ref.read(updateServiceProvider).downloadIpa(
+        release,
+        onProgress: (progress) {
+          if (mounted) state = state.copyWith(progress: progress);
+        },
+        cancel: _cancel,
+      );
+      if (!mounted) return;
+      state = state.copyWith(phase: UpdatePhase.downloaded, ipaPath: path, progress: 1, clearMessage: true);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        phase: UpdatePhase.error,
+        message: e is UpdateException ? e.message : toFailure(e).message,
+      );
     }
   }
 

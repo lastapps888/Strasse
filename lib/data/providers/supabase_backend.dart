@@ -87,6 +87,17 @@ class SupabaseBackend implements AccountBackend {
       final code = (data['error_code'] ?? data['code'] ?? '').toString();
       final raw = (data['msg'] ?? data['message'] ?? data['error_description'] ?? data['error'] ?? '').toString();
       final status = e.response?.statusCode;
+      if (code == 'PGRST202' ||
+          code == 'PGRST205' ||
+          raw.toLowerCase().contains('schema cache') ||
+          raw.toLowerCase().contains('could not find the function') ||
+          raw.toLowerCase().contains('could not find the table')) {
+        return const Failure(
+          FailureKind.server,
+          'Le schéma Strasse est absent de l’API Supabase. Exécutez supabase/migrations/0001_strasse.sql dans SQL Editor, puis rechargez le schéma PostgREST du projet.',
+          code: 'supabase_schema_missing',
+        );
+      }
       if (code == 'invalid_credentials' || raw.toLowerCase().contains('invalid login')) {
         return const Failure(FailureKind.client, 'E-mail ou mot de passe incorrect.', code: 'invalid_credentials');
       }
