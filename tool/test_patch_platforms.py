@@ -79,5 +79,52 @@ BuildSettingsDebug = {
         self.assertNotIn("OldIcon", generated)
 
 
+
+class PatchIosDeploymentTargetTests(unittest.TestCase):
+    def setUp(self):
+        self.original_cwd = os.getcwd()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        os.chdir(self.root)
+        patch_platforms.WARNINGS.clear()
+
+        ios = self.root / "ios"
+        ios.mkdir()
+        (ios / "Podfile").write_text("platform :ios, '14.0'\n", encoding="utf-8")
+
+        project = ios / "Runner.xcodeproj"
+        project.mkdir()
+        (project / "project.pbxproj").write_text(
+            "IPHONEOS_DEPLOYMENT_TARGET = 14.0;\n"
+            "IPHONEOS_DEPLOYMENT_TARGET = 14.0;\n",
+            encoding="utf-8",
+        )
+
+        flutter = ios / "Flutter"
+        flutter.mkdir()
+        (flutter / "AppFrameworkInfo.plist").write_text(
+            '<?xml version="1.0"?><plist><dict>'
+            '<key>MinimumOSVersion</key><string>14.0</string>'
+            '</dict></plist>',
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        self.temp_dir.cleanup()
+
+    def test_sets_ios_15_minimum_for_pods_project_and_flutter_framework(self):
+        patch_platforms.patch_podfile()
+
+        podfile = (self.root / "ios" / "Podfile").read_text(encoding="utf-8")
+        project = (self.root / "ios" / "Runner.xcodeproj" / "project.pbxproj").read_text(encoding="utf-8")
+        framework = (self.root / "ios" / "Flutter" / "AppFrameworkInfo.plist").read_text(encoding="utf-8")
+
+        self.assertIn("platform :ios, '15.0'", podfile)
+        self.assertEqual(project.count("IPHONEOS_DEPLOYMENT_TARGET = 15.0;"), 2)
+        self.assertNotIn("IPHONEOS_DEPLOYMENT_TARGET = 14.0;", project)
+        self.assertIn("<string>15.0</string>", framework)
+
+
 if __name__ == "__main__":
     unittest.main()
