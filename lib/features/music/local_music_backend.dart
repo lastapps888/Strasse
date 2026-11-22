@@ -238,6 +238,7 @@ class LocalMusicBackend implements MusicBackend {
 
   @override
   Future<MusicResults> search(String query) async {
+    await _ensurePickedLoaded();
     final q = _fold(query.trim());
     if (q.isEmpty) return const MusicResults();
     return MusicResults(tracks: [for (final t in _all) if (_fold('${t.title} ${t.artist} ${t.album}').contains(q)) t].take(60).toList());
@@ -247,6 +248,7 @@ class LocalMusicBackend implements MusicBackend {
 
   @override
   Future<List<MusicCollection>> library(CollectionKind kind) async {
+    await _ensurePickedLoaded();
     switch (kind) {
       case CollectionKind.album:
         final byAlbum = <String, List<MusicTrack>>{};
@@ -281,6 +283,7 @@ class LocalMusicBackend implements MusicBackend {
 
   @override
   Future<List<MusicTrack>> tracksOf(MusicCollection c) async {
+    await _ensurePickedLoaded();
     if (c.id.startsWith('album:')) {
       final key = c.id.substring(6);
       return [for (final t in _all) if ('${t.album}|${t.artist}' == key) t];
