@@ -34,7 +34,7 @@ void main() {
           'name': 'Strasse.ipa',
           'browser_download_url': 'https://example.invalid/Strasse.ipa',
           'size': 1234,
-          'digest': 'sha256:' + 'a' * 64,
+          'digest': 'sha256:' + List<String>.filled(64, 'a').join(),
         },
       ],
     });
@@ -42,6 +42,6 @@ void main() {
     expect(release!.isPrerelease, isTrue);
     expect(release.version, '1.0.0-beta.6');
     expect(release.ipaSize, 1234);
-    expect(release.ipaSha256, 'a' * 64);
+    expect(release.ipaSha256, List<String>.filled(64, 'a').join());
   });
 }
