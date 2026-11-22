@@ -4,6 +4,7 @@ import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/core/i18n/tr_text.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
+import 'package:strasse/features/places/mapillary_viewer_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Photo (Wikimedia Commons, avec auteur et licence) et résumé (Wikipédia) d'un lieu nommé, si un article correspond
@@ -21,7 +22,6 @@ class PlaceInfoBlock extends ConsumerWidget {
     final cs = context.cs;
     final named = place.name.trim().length >= 3;
     final info = named ? ref.watch(placeInfoProvider((place.name, place.point.lat, place.point.lon))).valueOrNull : null;
-    final reviewsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent('${place.name} ${place.point.lat},${place.point.lon}')}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -54,13 +54,23 @@ class PlaceInfoBlock extends ConsumerWidget {
               child: const Text('Lire la suite sur Wikipédia (CC BY-SA)'),
             ),
         ],
-        if (named)
+        if (named) ...[
           TextButton.icon(
             style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32), alignment: Alignment.centerLeft),
-            onPressed: () => _open(reviewsUrl),
-            icon: const Icon(Icons.star_border_rounded, size: 18),
-            label: const Text('Notes et avis (ouvre Google Maps)'),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => MapillaryViewerPage(place: place),
+            )),
+            icon: const Icon(Icons.streetview_rounded, size: 18),
+            label: const Text('Explorer les images de rue (Mapillary)'),
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'La vue dépend des images communautaires disponibles à cet endroit. Le lieu est transmis à Mapillary pour centrer la carte.',
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       ],
     );
   }
