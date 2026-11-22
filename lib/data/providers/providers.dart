@@ -74,7 +74,7 @@ final offlineRepositoryProvider = Provider<OfflineRepository>((ref) => OfflineRe
 /// Vrai si l'appareil a une connexion (Wi-Fi, mobile…). Ne garantit pas l'accès à un serveur donné.
 final onlineProvider = StreamProvider<bool>((ref) async* {
   final c = Connectivity();
-  bool online(List<ConnectivityResult> r) => r.any((e) => e != ConnectivityResult.none);
+  bool online(ConnectivityResult result) => result != ConnectivityResult.none;
   try {
     yield online(await c.checkConnectivity());
   } catch (_) {
