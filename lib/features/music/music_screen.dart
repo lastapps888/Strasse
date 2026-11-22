@@ -230,17 +230,17 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
           if (st.source != null && st.unavailable == null && !st.connected && !st.catalogAvailable) _connectCard(context, st),
           if (st.connected) _nowPlaying(context, st, caps!),
           if (st.connected || st.catalogAvailable) ...[
-            if (caps.search)
+            if (caps!.search)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: SearchBar(controller: _query, hintText: tr('Rechercher un titre, un artiste, un album'), leading: const Icon(Icons.search_rounded), onChanged: _onQuery, elevation: const WidgetStatePropertyAll(0)),
               ),
-            if (_results == null && caps.browse.isNotEmpty)
+            if (_results == null && caps!.browse.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Wrap(
                   spacing: 8,
-                  children: [for (final k in caps.browse) ChoiceChip(label: Text(k == CollectionKind.track && st.source == MusicSource.deezer ? 'Titres populaires' : k.label), selected: _kind == k, onSelected: (_) => _openKind(k))],
+                  children: [for (final k in caps!.browse) ChoiceChip(label: Text(k == CollectionKind.track && st.source == MusicSource.deezer ? 'Titres populaires' : k.label), selected: _kind == k, onSelected: (_) => _openKind(k))],
                 ),
               ),
             if (_loading || st.busy) const Padding(padding: EdgeInsets.all(24), child: LoadingView()),
