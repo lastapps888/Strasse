@@ -77,36 +77,76 @@ def patch_native_android():
 
 
 def patch_native_ios():
-    """AppDelegate.swift et déclaration des icônes alternatives dans le projet Xcode."""
+    """AppDelegate.swift et déclaration idempotente des icônes alternatives dans Xcode."""
     src = "platform_assets/native/AppDelegate.swift"
     if os.path.isdir("ios/Runner") and os.path.exists(src):
         shutil.copy2(src, "ios/Runner/AppDelegate.swift")
         print("AppDelegate.swift copié (changement d'icône, MusicKit).")
+
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if not os.path.exists(pbx):
         return warn("ios/Runner.xcodeproj/project.pbxproj introuvable : lancer `flutter create --platforms=ios .` (tool/ci_prepare.sh le fait), puis ce script.")
+
     names = sorted(
         d[:-len(".appiconset")]
         for d in os.listdir("platform_assets/ios_assets")
         if d.startswith("AppIcon-") and d.endswith(".appiconset")
     )
+    if not names:
+        return warn("Aucun jeu d'icône alternative .appiconset trouvé dans platform_assets/ios_assets.")
+
     s = read(pbx)
-    if "ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" not in s:
-        line = 'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "%s";' % " ".join(names)
-        s, n = re.subn(
-            r"(\n(\s*)ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;)",
-            lambda m: m.group(1) + "\n" + m.group(2) + line,
+    alternate_value = '"%s"' % " ".join(names)
+    alternate_pattern = re.compile(
+        r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\\s*=\\s*[^;]*;",
+        re.M,
+    )
+    if alternate_pattern.search(s):
+        s = alternate_pattern.sub(
+            lambda m: f"{m.group('indent')}ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = {alternate_value};",
             s,
         )
-        s, n2 = re.subn(
-            r"(\n(\s*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = [^\n]*;)",
-            lambda m: m.group(1) + "\n" + m.group(2) + "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;",
+    else:
+        anchor_pattern = re.compile(
+            r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_APPICON_NAME\\s*=\\s*AppIcon;",
+            re.M,
+        )
+        s, count = anchor_pattern.subn(
+            lambda m: (
+                m.group(0)
+                + "\\n"
+                + m.group("indent")
+                + f"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = {alternate_value};"
+            ),
             s,
         )
-        write(pbx, s)
-        print(f"project.pbxproj : {len(names)} icônes alternatives déclarées dans {n} configuration(s).")
-        if n == 0:
-            warn("ASSETCATALOG_COMPILER_APPICON_NAME introuvable dans project.pbxproj : icônes alternatives non déclarées.")
+        if count == 0:
+            return warn("ASSETCATALOG_COMPILER_APPICON_NAME introuvable dans project.pbxproj : icônes alternatives non déclarées.")
+
+    # Apple/Xcode n'inclut pas nécessairement les jeux alternatifs dans le bundle sans ce réglage.
+    # L'appliquer à chaque configuration et le réparer même si la liste des icônes était déjà présente.
+    lines = s.splitlines(keepends=True)
+    normalized = []
+    for index, line in enumerate(lines):
+        normalized.append(line)
+        match = re.match(
+            r"^(?P<indent>[ \\t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\\s*=\\s*[^;]*;",
+            line,
+        )
+        if match:
+            following = lines[index + 1] if index + 1 < len(lines) else ""
+            if not re.match(
+                r"^[ \\t]*ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS\\s*=",
+                following,
+            ):
+                newline = "\\r\\n" if line.endswith("\\r\\n") else "\\n"
+                normalized.append(
+                    f"{match.group('indent')}ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;{newline}"
+                )
+
+    s = "".join(normalized)
+    write(pbx, s)
+    print(f"project.pbxproj : {len(names)} icônes alternatives déclarées et incluses dans le bundle Xcode.")
 
 
 # ---------------------------------------------------------------- Android

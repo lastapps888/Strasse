@@ -546,7 +546,7 @@ class _LayersSheet extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final ctrl = ref.read(settingsProvider.notifier);
     final mapSource = ref.watch(providerResolverProvider).mapSource();
-    final satelliteAvailable = mapSource.styleUrl == null && mapSource.tilesUrl.isNotEmpty;
+    final satelliteAvailable = mapSource.available;
     return SafeArea(
       child: SingleChildScrollView(
         controller: scrollController,
@@ -570,7 +570,7 @@ class _LayersSheet extends ConsumerWidget {
             SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
             SwitchRow(
               title: 'Satellite',
-              subtitle: satelliteAvailable ? 'Imagerie mondiale Sentinel-2 (2016) et orthophotos IGN en France' : 'Disponible avec le style Strasse, pas avec le style fournisseur sélectionné',
+              subtitle: satelliteAvailable ? 'Imagerie mondiale Sentinel-2 (2016–2017) et orthophotos IGN en France' : 'Aucun fournisseur cartographique disponible',
               value: satelliteAvailable && s.showSatellite,
               onChanged: satelliteAvailable ? (v) => ctrl.update((x) => x.copyWith(showSatellite: v)) : null,
             ),

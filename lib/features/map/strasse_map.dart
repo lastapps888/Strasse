@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Text;
@@ -81,6 +82,12 @@ class StrasseMapController {
   final Map<String, Object> _lineToTag = {};
   final Map<String, MapEvent> _circleToEvent = {};
   final Map<String, MapPin> _circleToPin = {};
+  bool _externalSatelliteEnabled = false;
+
+  static const String _satelliteWorldSource = 'strasse-ext-satellite-world-source';
+  static const String _satelliteFranceSource = 'strasse-ext-satellite-france-source';
+  static const String _satelliteWorldLayer = 'strasse-ext-satellite-world-layer';
+  static const String _satelliteFranceLayer = 'strasse-ext-satellite-france-layer';
 
   void Function(int routeIndex)? onRouteTapped;
   void Function(MapEvent event)? onEventTapped;
@@ -137,6 +144,106 @@ class StrasseMapController {
       }
     });
     return _queue;
+  }
+
+  /// Active l'imagerie satellite au-dessus de n'importe quel style fournisseur distant.
+  /// Le style du fournisseur n'est jamais remplacé : seules deux sources raster sont ajoutées.
+  Future<void> setExternalSatelliteEnabled(bool enabled) {
+    _externalSatelliteEnabled = enabled;
+    return _enqueue(_applyExternalSatellite);
+  }
+
+  Future<void> _applyExternalSatellite() async {
+    final c = _c;
+    if (c == null) return;
+
+    final layerIds = (await c.getLayerIds()).whereType<String>().toSet();
+    if (!_externalSatelliteEnabled) {
+      for (final id in const [_satelliteFranceLayer, _satelliteWorldLayer]) {
+        if (layerIds.contains(id)) {
+          await c.removeLayer(id);
+        }
+      }
+      final sourceIds = (await c.getSourceIds()).toSet();
+      for (final id in const [_satelliteFranceSource, _satelliteWorldSource]) {
+        if (sourceIds.contains(id)) {
+          await c.removeSource(id);
+        }
+      }
+      return;
+    }
+
+    final sourceIds = (await c.getSourceIds()).toSet();
+    if (!sourceIds.contains(_satelliteWorldSource)) {
+      await c.addSource(
+        _satelliteWorldSource,
+        const ml.RasterSourceProperties(
+          tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'],
+          tileSize: 256,
+          maxzoom: 13,
+          attribution: 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
+        ),
+      );
+    }
+    if (!sourceIds.contains(_satelliteFranceSource)) {
+      await c.addSource(
+        _satelliteFranceSource,
+        const ml.RasterSourceProperties(
+          tiles: [
+            'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg',
+          ],
+          tileSize: 256,
+          minzoom: 6,
+          maxzoom: 19,
+          bounds: [-5.6, 41.2, 10.0, 51.2],
+          attribution: 'Orthophotographies © IGN (Licence Ouverte)',
+        ),
+      );
+    }
+
+    // Place les images au-dessus des aplats de fond et sous les premières routes/étiquettes
+    // du style chargé. Les ID des couches sont lus dans le style original du fournisseur.
+    String? belowLayerId;
+    final rawStyle = await c.getStyle();
+    if (rawStyle != null && rawStyle.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawStyle);
+        final layers = decoded is Map ? decoded['layers'] : null;
+        if (layers is List) {
+          for (final layer in layers) {
+            if (layer is Map &&
+                layer['id'] is String &&
+                const {'line', 'symbol', 'fill-extrusion'}.contains(layer['type'])) {
+              belowLayerId = layer['id'] as String;
+              break;
+            }
+          }
+        }
+      } on FormatException {
+        // Certains styles propriétaires ne sont pas exposés sous forme de JSON exploitable.
+      }
+    }
+
+    final existingLayers = (await c.getLayerIds()).whereType<String>().toSet();
+    if (!existingLayers.contains(_satelliteWorldLayer)) {
+      await c.addRasterLayer(
+        _satelliteWorldSource,
+        _satelliteWorldLayer,
+        const ml.RasterLayerProperties(rasterFadeDuration: 150),
+        belowLayerId: belowLayerId,
+        maxzoom: 13,
+      );
+    }
+    if (!existingLayers.contains(_satelliteFranceLayer)) {
+      await c.addRasterLayer(
+        _satelliteFranceSource,
+        _satelliteFranceLayer,
+        const ml.RasterLayerProperties(rasterFadeDuration: 150),
+        belowLayerId: belowLayerId,
+        minzoom: 6,
+        maxzoom: 19,
+      );
+    }
   }
 
   // ------------------------------------------------------------ État souhaité
@@ -304,6 +411,7 @@ class StrasseMapController {
   Future<void> reapply() => _enqueue(() async {
         final c = _c;
         if (c == null) return;
+        await _applyExternalSatellite();
         await c.clearLines();
         await c.clearCircles();
         _lines.clear();
@@ -717,7 +825,7 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
       widget.forceDark,
     ].join('|');
     if (key == _styleKey) return _style;
-    if (src.styleUrl != null && !(settings.showSatellite && src.tilesUrl.isNotEmpty)) {
+    if (src.styleUrl != null) {
       // Style complet d'un fournisseur (ex. OpenFreeMap Liberty) : utilisé tel quel.
       _style = src.styleUrl!;
       _styleKey = key;
@@ -739,7 +847,12 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AppSettings>(settingsProvider, (previous, next) {
+      final source = ref.read(providerResolverProvider).mapSource();
+      _controller.setExternalSatelliteEnabled(source.styleUrl != null && next.showSatellite);
+    });
     final config = ref.watch(appConfigProvider);
+    final settings = ref.watch(settingsProvider);
     final style = _buildStyle(context);
     final hasTiles = ref.watch(providerResolverProvider).mapSource().available;
     final fix = ref.read(locationFixOnceProvider);
@@ -756,7 +869,11 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
             _controller.attach(c);
             widget.onReady(_controller);
           },
-          onStyleLoadedCallback: () => _controller.reapply(),
+          onStyleLoadedCallback: () {
+            final source = ref.read(providerResolverProvider).mapSource();
+            _controller.setExternalSatelliteEnabled(source.styleUrl != null && ref.read(settingsProvider).showSatellite);
+            _controller.reapply();
+          },
           onMapClick: (math.Point<double> pt, ml.LatLng ll) async {
             if (widget.onPlaceTap != null) {
               final place = await _controller.placeAt(pt);
@@ -813,7 +930,12 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: cs.surface.withOpacity(0.8), borderRadius: BorderRadius.circular(8)),
               child: Text(
-                [AppConfig.osmAttribution, if (config.tilesAttribution.isNotEmpty) config.tilesAttribution].join(' · '),
+                [
+                  AppConfig.osmAttribution,
+                  if (config.tilesAttribution.isNotEmpty) config.tilesAttribution,
+                  if (settings.showSatellite) 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
+                  if (settings.showSatellite) 'Orthophotographies © IGN (Licence Ouverte)',
+                ].join(' · '),
                 style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.8)),
               ),
             ),
