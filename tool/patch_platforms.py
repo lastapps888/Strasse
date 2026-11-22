@@ -322,7 +322,7 @@ def generate_home_widgets():
     if not os.path.isdir("android") or not os.path.isfile(ios_project):
         return warn("Widgets natifs non générés : lancer `bash tool/ci_prepare.sh all` pour créer Android + Xcode et générer les deux extensions.")
     print("Génération des widgets natifs WidgetKit / Android Glance…")
-    subprocess.run(["dart", "run", "home_widget_cli", "generate"], cwd=ROOT, check=True)
+    subprocess.run(["dart", "run", "home_widget_cli:home_widget", "generate"], cwd=ROOT, check=True)
 
 
 if __name__ == "__main__":
