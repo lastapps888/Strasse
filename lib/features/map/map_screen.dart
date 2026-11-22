@@ -366,7 +366,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9), builder: (_) => const _LayersSheet())),
+                  _RoundButton(
+                    icon: Icons.layers_rounded,
+                    tooltip: tr('Couches de la carte'),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) => DraggableScrollableSheet(
+                        expand: false,
+                        initialChildSize: 0.6,
+                        minChildSize: 0.35,
+                        maxChildSize: 0.9,
+                        builder: (context, scrollController) => _LayersSheet(scrollController: scrollController),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               if (!online)
@@ -522,14 +537,19 @@ class _RoundButton extends StatelessWidget {
 
 /// Couches et style de carte.
 class _LayersSheet extends ConsumerWidget {
-  const _LayersSheet();
+  const _LayersSheet({this.scrollController});
+
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final ctrl = ref.read(settingsProvider.notifier);
+    final mapSource = ref.watch(providerResolverProvider).mapSource();
+    final satelliteAvailable = mapSource.styleUrl == null && mapSource.tilesUrl.isNotEmpty;
     return SafeArea(
       child: SingleChildScrollView(
+        controller: scrollController,
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -548,7 +568,12 @@ class _LayersSheet extends ConsumerWidget {
             ),
             const SectionTitle('Détails'),
             SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
-            SwitchRow(title: 'Satellite', subtitle: 'Imagerie satellite lorsque disponible', value: s.showSatellite, onChanged: (v) => ctrl.update((x) => x.copyWith(showSatellite: v))),
+            SwitchRow(
+              title: 'Satellite',
+              subtitle: satelliteAvailable ? 'Imagerie satellite mondiale et orthophotos IGN en France' : 'Disponible avec le style Strasse, pas avec le style fournisseur sélectionné',
+              value: satelliteAvailable && s.showSatellite,
+              onChanged: satelliteAvailable ? (v) => ctrl.update((x) => x.copyWith(showSatellite: v)) : null,
+            ),
             SwitchRow(title: 'Lieux d\'intérêt', value: s.showPoi, onChanged: (v) => ctrl.update((x) => x.copyWith(showPoi: v))),
             SwitchRow(title: 'Transports en commun', subtitle: 'Lignes, arrêts et horaires ; zoomez pour les voir', value: s.showTransit, onChanged: (v) => ctrl.update((x) => x.copyWith(showTransit: v))),
             SwitchRow(title: 'Hôtels', subtitle: 'Zoomez pour les afficher', value: s.showHotels, onChanged: (v) => ctrl.update((x) => x.copyWith(showHotels: v))),
