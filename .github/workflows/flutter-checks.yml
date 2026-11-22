@@ -24,6 +24,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Cloudflare Worker
+        run: npm test
+        working-directory: server/cloudflare
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
