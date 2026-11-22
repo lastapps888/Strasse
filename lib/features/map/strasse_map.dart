@@ -696,7 +696,26 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
     final platform = MediaQuery.platformBrightnessOf(context);
     final brightness = widget.forceDark == null ? platform : (widget.forceDark! ? Brightness.dark : Brightness.light);
     final src = ref.watch(providerResolverProvider).mapSource();
-    final key = '${identityHashCode(settings)}|$brightness|${src.tilesUrl}|${src.glyphsUrl}|${src.styleUrl}|${widget.forceDark}';
+    final key = [
+      settings.mapStyle.name,
+      settings.customRoadColor,
+      settings.customBuildingColor,
+      settings.customWaterColor,
+      settings.customGreenColor,
+      settings.showBuildings,
+      settings.showPoi,
+      settings.showTransit,
+      settings.showCycleways,
+      settings.showSatellite,
+      settings.mapDensity,
+      brightness.name,
+      src.tilesUrl,
+      src.glyphsUrl,
+      src.styleUrl,
+      config.mapFont,
+      config.tilesAttribution,
+      widget.forceDark,
+    ].join('|');
     if (key == _styleKey) return _style;
     if (src.styleUrl != null && !(settings.showSatellite && src.tilesUrl.isNotEmpty)) {
       // Style complet d'un fournisseur (ex. OpenFreeMap Liberty) : utilisé tel quel.
