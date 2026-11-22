@@ -103,7 +103,7 @@ jobs:
           raw_paths = subprocess.check_output(
               ["git", "diff", "--name-only", "--diff-filter=ACMRT", "-z", f"{base}...HEAD"]
           )
-          paths = [Path(item.decode("utf-8")) for item in raw_paths.split(b"\\0") if item]
+          paths = [Path(item.decode("utf-8")) for item in raw_paths.split(b"\0") if item]
           archive = Path("build/Strasse-1.0.0-beta6-modified-files.zip")
           archive.parent.mkdir(parents=True, exist_ok=True)
           included = []
