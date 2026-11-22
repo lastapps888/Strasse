@@ -76,7 +76,7 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
     });
     final b = _ctrl.backend;
     if (k == CollectionKind.track) {
-      final t = b is LocalMusicBackend ? b.allTracks() : await _chartTracks();
+      final t = b is LocalMusicBackend ? await b.allTracks() : await _chartTracks();
       if (mounted) setState(() {
         _tracks = t;
         _collections = const [];
