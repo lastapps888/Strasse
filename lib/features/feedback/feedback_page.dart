@@ -119,7 +119,7 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
             tone: BannerTone.info,
             message: viaMail
                 ? 'Votre application e-mail s\'ouvrira avec le message prérempli. Rien n\'est envoyé tant que vous n\'appuyez pas sur « Envoyer » dans cette application.'
-                : 'Seul le texte ci-dessus (et, si vous le cochez, la version) est envoyé, par le service FormSubmit, à ${AppConfig.feedbackEmail}, avec le titre « ${FeedbackService.subject(DateTime.now())} ». Aucune position ni identifiant n\'est joint.',
+                : 'Seul le texte ci-dessus (et, si vous le cochez, la version) est envoyé, par le service FormSubmit, avec le titre « ${FeedbackService.subject(DateTime.now())} ». Aucune position ni identifiant n\'est joint.',
           ),
           if (_sent) const Padding(padding: EdgeInsets.only(top: 12), child: InfoBanner(icon: Icons.check_circle_outline_rounded, tone: BannerTone.info, message: 'Merci, votre retour a été transmis au service d\'envoi.')),
           if (_error != null)
