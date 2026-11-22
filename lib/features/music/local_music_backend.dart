@@ -165,21 +165,69 @@ class LocalMusicBackend implements MusicBackend {
   }
 
 
-  /// Ajoute des fichiers audio choisis par l'utilisateur. Sur Android, le sélecteur copie les fichiers dans le cache de
-  /// l'application : ils sont oubliés au redémarrage (la bibliothèque de l'appareil, elle, est conservée).
+  /// Copie chaque fichier sélectionné dans le répertoire persistant de l'application et mémorise ses métadonnées.
+  /// Les fichiers importés restent disponibles après fermeture de Strasse et redémarrage du téléphone.
   Future<int> pickFiles() async {
-    final files = await FilePicker.pickFiles(type: FileType.audio);
+    await _ensurePickedLoaded();
+    final files = await FilePicker.pickFiles(type: FileType.audio, allowMultiple: true);
     if (files.isEmpty) return 0;
-    var n = 0;
-    for (final f in files) {
-      final path = f.path;
-      if (path == null) continue;
-      final name = f.name.replaceFirst(RegExp(r'\.[A-Za-z0-9]{2,5}$'), '');
-      _picked.add(MusicTrack(id: 'file${path.hashCode}', title: name, artist: 'Fichier', uri: Uri.file(path).toString()));
-      n++;
+    final directory = await _importDirectory();
+    final imported = <MusicTrack>[];
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    var index = 0;
+    for (final selected in files) {
+      final sourcePath = selected.path;
+      if (sourcePath == null || sourcePath.isEmpty) {
+        index++;
+        continue;
+      }
+      final source = File(sourcePath);
+      if (!await source.exists()) {
+        index++;
+        continue;
+      }
+      final originalName = p.basename(selected.name);
+      final safeName = originalName.replaceAll(RegExp(r'[^A-Za-z0-9._ -]'), '_');
+      final destinationPath = p.join(directory.path, stamp.toString() + '_' + index.toString() + '_' + safeName);
+      try {
+        final copied = await source.copy(destinationPath);
+        final title = p.basenameWithoutExtension(originalName).trim();
+        imported.add(MusicTrack(
+          id: 'file' + stamp.toString() + '_' + index.toString(),
+          title: title.isEmpty ? 'Fichier audio' : title,
+          artist: 'Fichier',
+          uri: Uri.file(copied.path).toString(),
+        ));
+      } on FileSystemException {
+        // Un fichier inaccessible ne doit pas empêcher l'importation des autres.
+      }
+      index++;
+    }
+    if (imported.isEmpty) {
+      throw const MusicException('Aucun des fichiers sélectionnés n’a pu être copié dans la bibliothèque Strasse.');
+    }
+    final previous = List<MusicTrack>.of(_picked);
+    _picked.addAll(imported);
+    try {
+      await _savePicked();
+    } catch (_) {
+      _picked
+        ..clear()
+        ..addAll(previous);
+      for (final track in imported) {
+        final uri = Uri.tryParse(track.uri ?? '');
+        if (uri != null && uri.scheme == 'file') {
+          try {
+            await File.fromUri(uri).delete();
+          } on FileSystemException {
+            // Le nettoyage ne doit pas masquer l'erreur de sauvegarde.
+          }
+        }
+      }
+      rethrow;
     }
     _connected = true;
-    return n;
+    return imported.length;
   }
 
   @override
