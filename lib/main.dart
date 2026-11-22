@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart' show initializeDateFormatting;
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:strasse/features/widgets/navigation_widget_sync.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strasse/app/app.dart';
 import 'package:strasse/app/theme/app_theme.dart';
@@ -57,6 +58,8 @@ void main() {
       if (kDebugMode) debugPrint('Erreur non gérée : $error\n$stack');
       return true;
     };
+
+    await NavigationWidgetSync.initialize();
 
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,

@@ -9,6 +9,7 @@ import glob
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -315,6 +316,15 @@ def remove_default_test():
         print("Test par défaut de flutter create supprimé.")
 
 
+def generate_home_widgets():
+    """Génère les extensions WidgetKit et Android Glance depuis home_widget/*.dart."""
+    ios_project = "ios/Runner.xcodeproj/project.pbxproj"
+    if not os.path.isdir("android") or not os.path.isfile(ios_project):
+        return warn("Widgets natifs non générés : lancer `bash tool/ci_prepare.sh all` pour créer Android + Xcode et générer les deux extensions.")
+    print("Génération des widgets natifs WidgetKit / Android Glance…")
+    subprocess.run(["dart", "run", "home_widget_cli", "generate"], cwd=ROOT, check=True)
+
+
 if __name__ == "__main__":
     patch_resources()
     if os.path.isdir("android"):
@@ -326,6 +336,7 @@ if __name__ == "__main__":
         patch_info_plist()
         patch_podfile()
     remove_default_test()
+    generate_home_widgets()
     if WARNINGS:
         print(f"\n{len(WARNINGS)} avertissement(s) : voir INSTALLATION.md pour les étapes manuelles.")
         sys.exit(0)

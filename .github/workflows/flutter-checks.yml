@@ -44,8 +44,8 @@ jobs:
           python3 -m py_compile tool/patch_platforms.py
           python3 -m unittest discover -s tool -p 'test_*.py'
 
-      - name: Resolve dependencies
-        run: flutter pub get
+      - name: Prepare native projects and generate home widgets
+        run: bash tool/ci_prepare.sh all
 
       - name: Analyze Dart code
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -72,11 +72,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
-        run: flutter pub get
-
-      - name: Configure native project
-        run: python3 tool/patch_platforms.py
+      - name: Prepare Android and iOS native projects
+        run: bash tool/ci_prepare.sh android
 
       - name: Build release APK
         run: flutter build apk --release
