@@ -8,3 +8,10 @@ binding = "DB"
 database_name = "strasse"
 # Remplacé par l'identifiant donné par : npx wrangler d1 create strasse
 database_id = "REMPLACER_PAR_L_ID_D1"
+
+
+# Secrets requis pour le relais des retours (ne jamais les ajouter au dépôt ou à l’application) :
+#   npx wrangler secret put RESEND_API_KEY
+#   npx wrangler secret put FEEDBACK_TO
+#   npx wrangler secret put FEEDBACK_FROM
+# FEEDBACK_FROM doit utiliser un domaine expéditeur vérifié chez Resend.

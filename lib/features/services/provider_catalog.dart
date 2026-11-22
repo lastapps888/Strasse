@@ -281,29 +281,17 @@ class ProviderCatalog {
 
     // ------------------------------------------------------------------ Retours
     ServiceProvider(
-      id: 'feedback-formsubmit',
+      id: 'feedback-strasse',
       category: ServiceCategory.feedback,
-      name: 'FormSubmit — envoi automatique par e-mail',
-      description: 'Votre message part sans quitter l\'application, vers l\'adresse du projet, avec pour titre « Feedback » et la date du jour. Aucun compte requis.',
-      baseUrl: 'https://formsubmit.co',
-      adapter: 'formsubmit',
+      name: 'Serveur Strasse — envoi automatique',
+      description: 'Transmet le message au serveur Strasse, qui le relaie par e-mail. Aucun destinataire ni identifiant e-mail n’est intégré à l’application.',
+      baseUrl: 'https://strasse-server.lastapps888.workers.dev',
+      adapter: 'strasse-feedback',
       recommended: true,
-      license: 'Service tiers gratuit : il relaie votre texte par e-mail ; consultez sa politique de confidentialité.',
-      termsUrl: 'https://formsubmit.co/privacy',
-      docUrl: 'https://formsubmit.co/',
-      limits: 'Seul le texte que vous écrivez est transmis (plus, si vous le cochez, la version et le système de l\'application). La toute première utilisation du service avec une adresse oblige son destinataire à confirmer un e-mail d\'activation envoyé par FormSubmit : tant que ce n\'est pas fait, les envois échouent.',
-      features: ['Envoi automatique', 'Aucune donnée personnelle ajoutée'],
-    ),
-    ServiceProvider(
-      id: 'feedback-mailto',
-      category: ServiceCategory.feedback,
-      name: 'Application e-mail de l\'appareil',
-      description: 'Ouvre votre application e-mail avec le message prérempli ; vous l\'envoyez vous-même. Aucun service tiers.',
-      kind: ProviderKind.native,
-      adapter: 'mailto',
-      license: 'Aucune donnée ne transite par un serveur autre que votre fournisseur d\'e-mail.',
-      limits: 'Nécessite une application e-mail configurée sur l\'appareil, et un envoi manuel.',
-      features: ['Sans service tiers'],
+      license: 'Le message est transmis au serveur Strasse puis au fournisseur d’e-mail configuré par le projet.',
+      docUrl: 'https://github.com/lastapps888/Strasse/tree/main/server/cloudflare',
+      limits: 'L’envoi est disponible lorsque les secrets e-mail sont configurés sur le Worker. Strasse confirme uniquement l’acceptation par le fournisseur, pas la livraison dans la boîte de réception.',
+      features: ['Aucune adresse de projet dans l’application', 'Clé d’envoi côté serveur', 'Confirmation après acceptation'],
     ),
 
     // ------------------------------------------------------------------ Tourisme

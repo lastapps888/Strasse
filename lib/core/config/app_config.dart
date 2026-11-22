@@ -83,5 +83,4 @@ class AppConfig {
   static const String repoUrl = 'https://github.com/lastapps888/Strasse';
 
   /// Destinataire des retours d'utilisateurs (adresse publique, aucun secret).
-  static const String feedbackEmail = 'srohsed.barjo.projet@gmail.com';
 }

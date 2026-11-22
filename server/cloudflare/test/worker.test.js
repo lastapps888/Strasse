@@ -86,3 +86,62 @@ test('signalements : création, fusion, vote unique, expiration par zone', async
   assert.equal(r.json.confirmations, 3, 'vote en double ignoré');
   assert.equal((await call('POST', '/v1/reports', { type: 'inconnu', lat: 1, lon: 1 }, token)).status, 400);
 });
+
+
+test('feedback refuse de confirmer lorsque le fournisseur n’est pas configuré', async () => {
+  const request = new Request('https://x.test/v1/feedback', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.10' },
+    body: JSON.stringify({ message: 'Message de retour suffisamment long.' }),
+  });
+  const response = await worker.fetch(request, env);
+  const json = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(json.success, undefined);
+  assert.equal(json.error.code, 'feedback_not_configured');
+});
+
+test('feedback transmet au fournisseur avec les secrets serveur et confirme son acceptation', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl;
+  let requestOptions;
+  globalThis.fetch = async (url, options) => {
+    requestUrl = String(url);
+    requestOptions = options;
+    return new Response(JSON.stringify({ id: 'email_test_123' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const payload = {
+      message: 'Retour de test suffisamment long.',
+      replyTo: 'person@example.test',
+    };
+    const response = await worker.fetch(new Request('https://x.test/v1/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.11' },
+      body: JSON.stringify(payload),
+    }), {
+      ...env,
+      RESEND_API_KEY: 're_test_server_secret',
+      FEEDBACK_TO: 'destination@example.test',
+      FEEDBACK_FROM: 'Strasse <noreply@example.test>',
+    });
+
+    const json = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(json.success, true);
+    assert.equal(requestUrl, 'https://api.resend.com/emails');
+    assert.equal(requestOptions.headers.Authorization, 'Bearer re_test_server_secret');
+    const email = JSON.parse(requestOptions.body);
+    assert.deepEqual(email.to, ['destination@example.test']);
+    assert.equal(email.reply_to, 'person@example.test');
+    assert.match(email.subject, /^Feedback \d{2}\/\d{2}\/\d{4}$/);
+    assert.equal(email.text, payload.message);
+    assert.equal(JSON.stringify(payload).includes('destination@example.test'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

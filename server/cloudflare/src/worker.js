@@ -192,6 +192,60 @@ const routes = {
     return reply(reportJson(row), 201);
   },
 
+  async feedback(request, env) {
+    const input = await body(request);
+    if (!input || typeof input.message !== 'string') return fail(400, 'Message invalide.', 'bad_request');
+    const message = input.message.trim();
+    if (message.length < 10 || message.length > 4000) return fail(400, 'Le message doit contenir entre 10 et 4 000 caractères.', 'bad_request');
+
+    const replyTo = typeof input.replyTo === 'string' ? input.replyTo.trim() : '';
+    if (replyTo && (replyTo.length > 254 || /[\r\n]/.test(replyTo) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo))) {
+      return fail(400, 'Adresse de réponse invalide.', 'bad_reply_to');
+    }
+
+    const ip = request.headers.get('cf-connecting-ip') || 'x';
+    if (!(await limit(env, 'feedback:' + await sha256Hex(ip), 5, 3600e3))) {
+      return fail(429, 'Trop de retours envoyés. Réessayez plus tard.', 'rate_limited');
+    }
+
+    if (!env.RESEND_API_KEY || !env.FEEDBACK_TO || !env.FEEDBACK_FROM) {
+      return fail(503, 'Le service de retours n’est pas encore configuré sur le serveur Strasse.', 'feedback_not_configured');
+    }
+
+    const now = new Date();
+    const two = (value) => String(value).padStart(2, '0');
+    const subject = 'Feedback ' + two(now.getUTCDate()) + '/' + two(now.getUTCMonth() + 1) + '/' + now.getUTCFullYear();
+    const email = {
+      from: env.FEEDBACK_FROM,
+      to: [env.FEEDBACK_TO],
+      subject,
+      text: message,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    };
+
+    let response;
+    let result;
+    try {
+      response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + env.RESEND_API_KEY,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Strasse-Worker/1.0',
+        },
+        body: JSON.stringify(email),
+      });
+      result = await response.json();
+    } catch (_) {
+      return fail(502, 'Le fournisseur e-mail est injoignable. Réessayez plus tard.', 'feedback_delivery_failed');
+    }
+
+    if (!response.ok || !result || typeof result.id !== 'string' || !result.id) {
+      return fail(502, 'Le fournisseur e-mail n’a pas accepté le message.', 'feedback_delivery_failed');
+    }
+    return reply({ success: true });
+  },
+
   async reportVote(request, env, url, rid, up) {
     const id = await authed(request, env);
     if (!id) return fail(401, 'Connectez-vous pour voter.', 'unauthorized');
@@ -220,6 +274,7 @@ export default {
     try {
       if (m === 'OPTIONS') return new Response(null, { status: 204 });
       if (url.pathname === '/v1/health') return reply({ ok: true });
+      if (m === 'POST' && url.pathname === '/v1/feedback') return await routes.feedback(request, env);
       if (m === 'POST' && url.pathname === '/v1/auth/register') return await routes.register(request, env);
       if (m === 'POST' && url.pathname === '/v1/auth/login') return await routes.login(request, env);
       if (m === 'POST' && url.pathname === '/v1/auth/recover/start') return await routes.recoverStart(request, env);
