@@ -81,8 +81,18 @@ def patch_native_ios():
     """AppDelegate.swift et déclaration idempotente des icônes alternatives dans Xcode."""
     src = "platform_assets/native/AppDelegate.swift"
     if os.path.isdir("ios/Runner") and os.path.exists(src):
+        native_delegate = read(src)
+        required_handlers = ('case "status":', 'case "metadataForFile":')
+        missing_handlers = [handler for handler in required_handlers if handler not in native_delegate]
+        if missing_handlers:
+            raise RuntimeError(
+                "Le modèle platform_assets/native/AppDelegate.swift est incomplet : "
+                + ", ".join(missing_handlers)
+                + ". Refus de l'appliquer pour ne pas supprimer la restauration MusicKit "
+                "ou les métadonnées de musique locale."
+            )
         shutil.copy2(src, "ios/Runner/AppDelegate.swift")
-        print("AppDelegate.swift copié (changement d'icône, MusicKit).")
+        print("AppDelegate.swift copié (icônes, restauration MusicKit et métadonnées audio).")
 
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if not os.path.exists(pbx):
