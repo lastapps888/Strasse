@@ -43,6 +43,6 @@ void main() {
 }
 
 List<String> _placeholders(String text) {
-  final values = RegExp(r'\\{\\d+\\}').allMatches(text).map((match) => match.group(0)!).toList()..sort();
+  final values = RegExp(r'\{\d+\}').allMatches(text).map((match) => match.group(0)!).toList()..sort();
   return values;
 }
