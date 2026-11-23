@@ -871,9 +871,8 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
             widget.onReady(_controller);
           },
           onStyleLoadedCallback: () {
-            // La couche satellite est un overlay raster indépendant du style de base :
-            // elle doit aussi être réappliquée aux styles vectoriels générés par Strasse.
-            _controller.setExternalSatelliteEnabled(ref.read(settingsProvider).showSatellite);
+            final source = ref.read(providerResolverProvider).mapSource();
+            _controller.setExternalSatelliteEnabled(source.styleUrl != null && ref.read(settingsProvider).showSatellite);
             _controller.reapply();
           },
           onMapClick: (math.Point<double> pt, ml.LatLng ll) async {
