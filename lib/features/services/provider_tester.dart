@@ -167,7 +167,10 @@ class ProviderTester {
           return (false, 'L’API REST Supabase répond avec HTTP $status pendant le contrôle du schéma. ${detail.isEmpty ? 'Vérifiez la migration Strasse.' : detail}');
         }
 
-        final serverTime = _json(schema.data);
+        final rawTime = schema.data;
+        final serverTime = rawTime is String
+            ? (DateTime.tryParse(rawTime) != null ? rawTime : _json(rawTime))
+            : _json(rawTime);
         if (serverTime is! String || DateTime.tryParse(serverTime) == null) {
           return (false, 'L’API REST répond, mais server_time ne renvoie pas un horodatage valide. Vérifiez la migration Strasse.');
         }
