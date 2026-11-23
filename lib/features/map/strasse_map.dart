@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
@@ -101,6 +102,18 @@ class StrasseMapController {
   bool trackUserGestures = false;
 
   bool get isReady => _c != null;
+
+  /// Capture une image PNG de la carte courante pour l'aperçu du widget d'accueil.
+  /// La capture échoue silencieusement si la vue native n'est pas encore prête ou est détruite.
+  Future<Uint8List?> takeWidgetSnapshot({int width = 720, int height = 360}) async {
+    final c = _c;
+    if (c == null) return null;
+    try {
+      return await c.takeSnapshot(width: width, height: height).timeout(const Duration(seconds: 6));
+    } catch (_) {
+      return null;
+    }
+  }
 
   void attach(ml.MapLibreMapController controller) {
     _c = controller;

@@ -24,6 +24,7 @@ import 'package:strasse/features/traffic/report_sheet.dart';
 import 'package:strasse/features/traffic/traffic_controller.dart';
 import 'package:strasse/features/transit/transit_sheets.dart';
 import 'package:strasse/features/transit/transit_style.dart';
+import 'package:strasse/features/widgets/navigation_widget_sync.dart';
 
 enum FollowMode { off, follow, heading }
 
@@ -43,6 +44,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   CancelToken? _reverseCancel;
   String? _resultsLabel;
   Timer? _idleDebounce;
+  Timer? _widgetSnapshotDebounce;
+  DateTime _lastWidgetSnapshot = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _widgetSnapshotBusy = false;
   double _bearing = 0;
   CancelToken? _transitCancel;
   bool _transitErrorShown = false;
@@ -52,6 +56,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void dispose() {
     _idleDebounce?.cancel();
+    _widgetSnapshotDebounce?.cancel();
     _reverseCancel?.cancel();
     _transitCancel?.cancel();
     _poiCancel?.cancel();
@@ -290,6 +295,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (ref.read(settingsProvider).showTrafficEvents) ref.read(trafficProvider.notifier).refresh(b);
       _loadTransit();
       _loadPois();
+      _scheduleWidgetMapPreview();
+    });
+  }
+
+  /// Met à jour l'image native du widget après un déplacement de carte, avec temporisation
+  /// pour éviter des captures et des écritures dans le groupe partagé à chaque frame.
+  void _scheduleWidgetMapPreview() {
+    _widgetSnapshotDebounce?.cancel();
+    _widgetSnapshotDebounce = Timer(const Duration(seconds: 3), () async {
+      if (!mounted || _widgetSnapshotBusy || DateTime.now().difference(_lastWidgetSnapshot) < const Duration(seconds: 30)) return;
+      final map = _map;
+      if (map == null || !map.isReady) return;
+      _widgetSnapshotBusy = true;
+      try {
+        final png = await map.takeWidgetSnapshot();
+        if (!mounted || png == null || png.isEmpty) return;
+        final config = ref.read(providerResolverProvider).config;
+        final attribution = [
+          AppConfig.osmAttribution,
+          if (config.tilesAttribution.trim().isNotEmpty) config.tilesAttribution.trim(),
+        ].join(' · ');
+        await NavigationWidgetSync.updateMapPreview(png, attribution: attribution);
+        _lastWidgetSnapshot = DateTime.now();
+      } finally {
+        _widgetSnapshotBusy = false;
+      }
     });
   }
 
@@ -308,6 +339,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     ref.listen<LocationState>(locationControllerProvider, (_, n) => _pushUser(n));
     ref.listen<TrafficState>(trafficProvider, (_, n) => _pushEvents(n));
     ref.listen<List<Place>>(mapResultsProvider, (_, n) => _pushResults(n));
+    ref.listen<int>(homeWidgetSearchRequestProvider, (previous, next) {
+      if (previous == null || next == previous) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openSearch();
+      });
+    });
     ref.listen<AppSettings>(settingsProvider, (a, b) {
       if (a?.showTrafficEvents != b.showTrafficEvents) _pushEvents(ref.read(trafficProvider));
       if (a?.showTransit != b.showTransit) _loadTransit();

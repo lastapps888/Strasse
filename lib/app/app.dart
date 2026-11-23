@@ -8,6 +8,7 @@ import 'package:strasse/app/shell.dart';
 import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
+import 'package:strasse/features/widgets/navigation_widget_sync.dart';
 import 'package:strasse/features/profile/onboarding_page.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 
@@ -22,9 +23,12 @@ class StrasseApp extends ConsumerStatefulWidget {
 }
 
 class _StrasseAppState extends ConsumerState<StrasseApp> {
+  StreamSubscription<Uri>? _widgetLaunches;
+
   @override
   void initState() {
     super.initState();
+    _widgetLaunches = NavigationWidgetSync.launches.listen(_handleWidgetLaunch);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       // Vérifie que les cartes téléchargées existent toujours (le système peut avoir vidé le cache).
@@ -54,6 +58,18 @@ class _StrasseAppState extends ConsumerState<StrasseApp> {
         }
       }
     });
+  }
+
+  void _handleWidgetLaunch(Uri uri) {
+    if (!NavigationWidgetSync.isQuickSearchUri(uri) || !mounted || !ref.read(settingsProvider).onboardingDone) return;
+    ref.read(shellIndexProvider.notifier).state = 1;
+    ref.read(homeWidgetSearchRequestProvider.notifier).state++;
+  }
+
+  @override
+  void dispose() {
+    _widgetLaunches?.cancel();
+    super.dispose();
   }
 
   AppLanguage? _loading;
