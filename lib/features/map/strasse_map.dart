@@ -516,7 +516,9 @@ class StrasseMapController {
     if (c == null) return null;
     try {
       final rect = Rect.fromCenter(center: Offset(screen.x, screen.y), width: 36, height: 36);
-      final found = await c.queryRenderedFeaturesInRect(rect, null, null);
+      final layerIds = (await c.getLayerIds()).whereType<String>().toList(growable: false);
+      if (layerIds.isEmpty) return null;
+      final found = await c.queryRenderedFeaturesInRect(rect, layerIds, null);
       for (final feature in found) {
         final place = placeFromRenderedFeature(feature);
         if (place != null) return place;
