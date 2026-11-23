@@ -74,7 +74,7 @@ import 'package:home_widget_generator/home_widget_generator.dart';
         HWColumn(
           children: [
             HWText(
-              HWString('destination', defaultValue: 'Lancez un trajet'),
+              HWString('destination'),
               style: HWRoleTextStyle(
                 role: HWTextStyleRole.headline,
                 fontWeight: HWFontWeight.bold,
