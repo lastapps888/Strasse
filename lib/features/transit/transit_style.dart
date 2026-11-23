@@ -132,7 +132,7 @@ class TransitOverlay {
     final merged = <TransitLine>[...osm];
     final indexes = <String, List<int>>{};
 
-    String normalize(String? value) => (value ?? '').trim().toLowerCase().replaceAll(RegExp(r'\\s+'), ' ');
+    String normalize(String? value) => (value ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     String shapeKey(List<GeoPoint> shape) => shape
         .map((point) => '${point.lat.toStringAsFixed(5)},${point.lon.toStringAsFixed(5)}')
         .join(';');
