@@ -195,9 +195,10 @@ class SpotifyBackend implements MusicBackend {
   MusicException _apiError(DioException e) {
     final status = e.response?.statusCode;
     final d = e.response?.data;
-    final err = d is Map ? d['error'] : null;
-    final reason = err is Map ? '${err['reason'] ?? ''}' : '';
-    final message = err is Map ? '${err['message'] ?? ''}' : '';
+    final error = d is Map && d['error'] is Map ? d['error'] as Map : const {};
+    // Spotify peut exposer reason à la racine ou dans error selon la réponse.
+    final reason = d is Map ? '${d['reason'] ?? error['reason'] ?? ''}' : '';
+    final message = d is Map ? '${d['message'] ?? error['message'] ?? ''}' : '';
     if (status == 401) return const MusicException('Session Spotify expirée : reconnectez-vous.', needsLogin: true);
     if (status == 403 && reason == 'PREMIUM_REQUIRED') return const MusicException('Un compte Spotify Premium est nécessaire pour commander la lecture.');
     if (status == 403) {
@@ -207,11 +208,20 @@ class SpotifyBackend implements MusicBackend {
     }
     if (status == 404 && reason == 'NO_ACTIVE_DEVICE') return const MusicException('Aucun appareil Spotify actif. Ouvrez l\'application Spotify, lancez un titre, puis réessayez.');
     if (status == 404) return const MusicException('Élément introuvable sur Spotify.');
-    if (status == 429) return const MusicException('Spotify limite les requêtes : réessayez dans un instant.');
+    if (status == 429 && reason == 'QUOTA_EXCEEDED') {
+      return const MusicException('Quota du compte développeur Spotify épuisé en mode développement. Le quota est partagé entre ses applications : vérifiez son renouvellement dans le tableau de bord et réduisez les requêtes.');
+    }
+    if (status == 429) {
+      final retryAfter = e.response?.headers.value('retry-after');
+      final seconds = int.tryParse(retryAfter ?? '');
+      if (seconds != null && seconds > 0) {
+        return MusicException('Spotify limite temporairement les requêtes. Réessayez dans $seconds secondes.');
+      }
+      return const MusicException('Spotify limite temporairement les requêtes : réessayez dans un instant.');
+    }
     if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) return const MusicException('Spotify est injoignable (réseau).');
     return MusicException(message.isEmpty ? 'Erreur Spotify (${status ?? 'réseau'}).' : 'Spotify : $message');
   }
-
   /// Exécute une commande de lecture ; sans appareil actif, tente l'unique appareil disponible.
   Future<void> _command(String method, String path, {Map<String, dynamic>? query, Object? body}) async {
     try {
