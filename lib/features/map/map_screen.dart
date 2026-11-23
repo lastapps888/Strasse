@@ -14,6 +14,7 @@ import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/location/location_prompt.dart';
 import 'package:strasse/features/location/location_service.dart';
 import 'package:strasse/features/map/strasse_map.dart';
+import 'package:strasse/features/map/poi_badges.dart';
 import 'package:strasse/features/places/place_sheet.dart';
 import 'package:strasse/features/places/poi_sheet.dart';
 import 'package:strasse/features/routing/route_preview_page.dart';
@@ -161,7 +162,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!mounted || token.isCancelled) return;
     c.setPoiPins([
       for (final p in all.take(150))
-        MapPin(id: 'poi:${p.id}', point: p.point, color: _poiColors[p.id] ?? Colors.teal, radius: 7, onTap: () => _openPoi(p)),
+        MapPin(
+          id: 'poi:${p.id}',
+          point: p.point,
+          color: _poiColors[p.id] ?? Colors.teal,
+          radius: 7,
+          iconImage: PoiBadges.forPoi(p.kind.name, p.place.category).image,
+          onTap: () => _openPoi(p),
+        ),
     ]);
     if (error != null && all.isEmpty && !_poiErrorShown) {
       final f = toFailure(error);

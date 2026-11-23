@@ -23,6 +23,9 @@ class MapPin {
   final Color color;
   final double radius;
   final VoidCallback? onTap;
+
+  /// Image de badge MapLibre déjà enregistrée dans le style (par exemple `poi-food`).
+  final String? iconImage;
 }
 
 /// Ligne supplémentaire (tronçon de transport en commun, trace…).
@@ -82,6 +85,7 @@ class StrasseMapController {
   final Map<String, Object> _lineToTag = {};
   final Map<String, MapEvent> _circleToEvent = {};
   final Map<String, MapPin> _circleToPin = {};
+  final Map<String, MapPin> _symbolToPin = {};
   bool _externalSatelliteEnabled = false;
 
   static const String _satelliteWorldSource = 'strasse-ext-satellite-world-source';
@@ -102,12 +106,14 @@ class StrasseMapController {
     _c = controller;
     controller.onCircleTapped.add(_circleTapped);
     controller.onLineTapped.add(_lineTapped);
+    controller.onSymbolTapped.add(_symbolTapped);
     controller.addListener(_cameraChanged);
   }
 
   void detach() {
     _stopGlide();
     _c?.removeListener(_cameraChanged);
+    _c?.onSymbolTapped.remove(_symbolTapped);
     _c = null;
   }
 
@@ -133,6 +139,10 @@ class StrasseMapController {
     }
     final tag = _lineToTag[l.id];
     if (tag != null) onLineTag?.call(tag);
+  }
+
+  void _symbolTapped(ml.Symbol symbol) {
+    _symbolToPin[symbol.id]?.onTap?.call();
   }
 
   Future<void> _enqueue(Future<void> Function() task) {
@@ -414,6 +424,9 @@ class StrasseMapController {
         await _applyExternalSatellite();
         await c.clearLines();
         await c.clearCircles();
+        await c.clearSymbols();
+        _symbolsUnavailable.clear();
+        _symbolToPin.clear();
         _lines.clear();
         _circles.clear();
         _lineToRoute.clear();
@@ -432,14 +445,18 @@ class StrasseMapController {
       });
 
   Future<void> _registerPoiBadges(ml.MapLibreMapController c) async {
-    try {
-      for (final b in [...PoiBadges.all, PoiBadges.other]) {
+    for (final b in [...PoiBadges.all, PoiBadges.other]) {
+      try {
         await c.addImage(b.image, await PoiBadges.render(b));
+      } catch (_) {
+        // Une image déjà présente n'empêche pas l'enregistrement des badges suivants.
       }
-    } catch (_) {
-      // Image déjà présente dans le style rechargé : sans conséquence.
     }
   }
+
+  /// Certains styles tiers n'acceptent pas les images d'annotation. Ces POI gardent alors
+  /// un cercle cliquable au lieu de disparaître.
+  final Set<String> _symbolsUnavailable = {};
 
   static const Set<String> _renderedPoiClasses = {
     'amenity',
@@ -593,6 +610,14 @@ class StrasseMapController {
     _circles.clear();
     _circleToEvent.clear();
     _circleToPin.clear();
+    _symbolToPin.clear();
+    if (_symbolToPin.isEmpty) {
+      try {
+        await c.clearSymbols();
+      } catch (_) {
+        // Aucun symbole d'annotation sur ce style ou après une reconstruction native.
+      }
+    }
 
     for (final e in _events) {
       final circle = await c.addCircle(ml.CircleOptions(
@@ -606,7 +631,36 @@ class StrasseMapController {
       _circles.add(circle);
       _circleToEvent[circle.id] = e;
     }
-    for (final p in [..._transitStops, ..._poiPins]) {
+    for (final p in _transitStops) {
+      final circle = await c.addCircle(ml.CircleOptions(
+        geometry: _ll(p.point),
+        circleRadius: p.radius,
+        circleColor: hex(p.color),
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
+      ));
+      _circles.add(circle);
+      _circleToPin[circle.id] = p;
+    }
+
+    for (final p in _poiPins) {
+      final image = p.iconImage;
+      if (image != null && !_symbolsUnavailable.contains(image)) {
+        try {
+          final symbol = await c.addSymbol(ml.SymbolOptions(
+            geometry: _ll(p.point),
+            iconImage: image,
+            iconSize: 0.9,
+            iconAnchor: 'bottom',
+            iconAllowOverlap: true,
+            iconIgnorePlacement: true,
+          ));
+          _symbolToPin[symbol.id] = p;
+          continue;
+        } catch (_) {
+          _symbolsUnavailable.add(image);
+        }
+      }
       final circle = await c.addCircle(ml.CircleOptions(
         geometry: _ll(p.point),
         circleRadius: p.radius,
