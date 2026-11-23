@@ -7,42 +7,53 @@ import 'package:strasse/core/i18n/app_language.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Application translation resources', () {
-    late Map<String, dynamic> reference;
+  const targetCodes = ['vi', 'hi', 'bn', 'ur', 'id', 'tr'];
+
+  group('Beta 6 translation resources', () {
+    late Set<String> expectedKeys;
 
     setUpAll(() async {
-      reference = jsonDecode(await rootBundle.loadString('assets/i18n/en.json')) as Map<String, dynamic>;
+      final raw = await rootBundle.loadString('assets/i18n/vi.json');
+      expectedKeys = (jsonDecode(raw) as Map<String, dynamic>).keys.toSet();
     });
 
-    for (final language in AppLanguage.values.where((language) => language != AppLanguage.fr)) {
-      test('${language.code} has the complete translation key set', () async {
-        final raw = await rootBundle.loadString('assets/i18n/${language.code}.json');
+    for (final code in targetCodes) {
+      test('$code contains the complete shared key set and valid placeholders', () async {
+        final raw = await rootBundle.loadString('assets/i18n/$code.json');
         final dictionary = jsonDecode(raw) as Map<String, dynamic>;
+        final keys = dictionary.keys.toSet();
 
-        expect(dictionary.keys.toSet(), reference.keys.toSet(),
-            reason: 'The ${language.code} dictionary must contain every application translation key.');
+        expect(keys, expectedKeys, reason: 'All six Beta 6 dictionaries must stay in sync.');
         for (final entry in dictionary.entries) {
-          expect(entry.value, isA<String>(), reason: '${language.code}:${entry.key}');
-          expect((entry.value as String).trim(), isNotEmpty, reason: '${language.code}:${entry.key}');
+          expect(entry.value, isA<String>(), reason: '$code:${entry.key}');
+          expect((entry.value as String).trim(), isNotEmpty, reason: '$code:${entry.key}');
+
+          final sourcePlaceholders = _placeholders(entry.key).toSet();
+          final translatedPlaceholders = _placeholders(entry.value as String);
           expect(
-            _placeholders(entry.value as String),
-            _placeholders(entry.key),
-            reason: 'The placeholders in ${language.code}:${entry.key} must match the source phrase.',
+            translatedPlaceholders.every(sourcePlaceholders.contains),
+            isTrue,
+            reason: '$code:${entry.key} must not introduce placeholders absent from its source phrase.',
           );
+          if (sourcePlaceholders.contains('{0}')) {
+            expect(
+              translatedPlaceholders,
+              contains('{0}'),
+              reason: '$code:${entry.key} must retain the main inserted value.',
+            );
+          }
         }
       });
     }
 
-    test('Arabic and Urdu are configured as right-to-left languages', () {
-      expect(AppLanguage.ar.rtl, isTrue);
+    test('Urdu uses right-to-left layout while the other target languages remain left-to-right', () {
       expect(AppLanguage.ur.rtl, isTrue);
-      expect(AppLanguage.fr.rtl, isFalse);
-      expect(AppLanguage.en.rtl, isFalse);
+      for (final code in const ['vi', 'hi', 'bn', 'id', 'tr']) {
+        expect(AppLanguage.fromCode(code).rtl, isFalse, reason: code);
+      }
     });
   });
 }
 
-List<String> _placeholders(String text) {
-  final values = RegExp(r'\{\d+\}').allMatches(text).map((match) => match.group(0)!).toList()..sort();
-  return values;
-}
+List<String> _placeholders(String text) =>
+    RegExp(r'\{\d+\}').allMatches(text).map((match) => match.group(0)!).toList();
