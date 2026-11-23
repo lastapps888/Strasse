@@ -68,6 +68,20 @@ class ProviderCatalog {
       features: ['Carte en ligne'],
     ),
 
+    // ------------------------------------------------------------------ Secours cartographique
+    ServiceProvider(
+      id: 'versatiles-demo',
+      category: ServiceCategory.tiles,
+      name: 'VersaTiles — secours public',
+      description: 'Style MapLibre autonome utilisable comme solution de repli si le fournisseur principal ne répond plus.',
+      baseUrl: 'https://tiles.versatiles.org/assets/styles/colorful/style.json',
+      adapter: 'styleurl',
+      license: 'Données cartographiques © contributeurs OpenStreetMap (ODbL) ; style et service VersaTiles.',
+      docUrl: 'https://versatiles.org/',
+      limits: 'Instance publique de démonstration : gratuite et sans clé, mais sans garantie de disponibilité ni de capacité. Pour un usage intensif, hébergez votre propre instance.',
+      features: ['Style MapLibre prêt à l’emploi', 'Secours automatique', 'Aucune clé API'],
+    ),
+
     // ------------------------------------------------------------------ Glyphes
     ServiceProvider(
       id: 'openmaptiles-fonts',

@@ -12,7 +12,10 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/map/map_style_builder.dart';
+import 'package:strasse/features/map/map_provider_health_check.dart';
 import 'package:strasse/features/map/poi_badges.dart';
+import 'package:strasse/features/services/provider_models.dart';
+import 'package:strasse/features/services/provider_resolver.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 
@@ -916,13 +919,88 @@ class StrasseMap extends ConsumerStatefulWidget {
 
 class _StrasseMapState extends ConsumerState<StrasseMap> {
   final StrasseMapController _controller = StrasseMapController();
+  late final MapProviderHealthCheck _mapHealthCheck = MapProviderHealthCheck(
+    userAgent: ref.read(appConfigProvider).userAgent,
+  );
+  Timer? _mapHealthTimer;
+  ServiceProvider? _activeTilesProvider;
+  bool _checkingMapProvider = false;
+  bool _mapProviderUnavailable = false;
   String _style = '';
   String _styleKey = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resolveMapProvider();
+    });
+    _mapHealthTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _resolveMapProvider();
+    });
+  }
+
+  @override
   void dispose() {
+    _mapHealthTimer?.cancel();
+    _mapHealthCheck.close();
     _controller.detach();
     super.dispose();
+  }
+
+  String _mapProviderConfigurationKey(ProviderResolver resolver) => [
+        resolver.settings.autoFallback,
+        for (final provider in resolver.mapCandidates())
+          '${provider.id}|${provider.adapter}|${ProviderResolver.normalize(resolver.urlOf(provider))}',
+      ].join('|');
+
+  Future<void> _resolveMapProvider() async {
+    if (_checkingMapProvider || !mounted) return;
+    _checkingMapProvider = true;
+    try {
+      final resolver = ref.read(providerResolverProvider);
+      final candidates = resolver.mapCandidates();
+      final selected = resolver.selected(ServiceCategory.tiles);
+      if (candidates.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _activeTilesProvider = selected;
+            _mapProviderUnavailable = true;
+          });
+        }
+        return;
+      }
+
+      final ordered = <ServiceProvider>[candidates.first];
+      if (resolver.settings.autoFallback && _activeTilesProvider != null) {
+        ordered.add(_activeTilesProvider!);
+      }
+      ordered.addAll(candidates.skip(1));
+      final seen = <String>{};
+      ServiceProvider? healthy;
+      for (final provider in ordered) {
+        final key = '${provider.id}|${ProviderResolver.normalize(resolver.urlOf(provider))}';
+        if (!seen.add(key)) continue;
+        if (await _mapHealthCheck.isHealthy(provider, resolver)) {
+          healthy = provider;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+      final next = healthy ?? selected;
+      final changed = _activeTilesProvider?.id != next.id ||
+          ProviderResolver.normalize(resolver.urlOf(_activeTilesProvider ?? selected)) != ProviderResolver.normalize(resolver.urlOf(next)) ||
+          _mapProviderUnavailable != (healthy == null);
+      if (changed) {
+        setState(() {
+          _activeTilesProvider = next;
+          _mapProviderUnavailable = healthy == null;
+        });
+      }
+    } finally {
+      _checkingMapProvider = false;
+    }
   }
 
   String _buildStyle(BuildContext context) {
@@ -930,7 +1008,8 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
     final config = ref.watch(appConfigProvider);
     final platform = MediaQuery.platformBrightnessOf(context);
     final brightness = widget.forceDark == null ? platform : (widget.forceDark! ? Brightness.dark : Brightness.light);
-    final src = ref.watch(providerResolverProvider).mapSource();
+    final resolver = ref.watch(providerResolverProvider);
+    final src = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
     final key = [
       settings.mapStyle.name,
       settings.customRoadColor,
@@ -974,15 +1053,27 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<ProviderResolver>(providerResolverProvider, (previous, next) {
+      if (previous == null || _mapProviderConfigurationKey(previous) == _mapProviderConfigurationKey(next)) return;
+      _activeTilesProvider = null;
+      _mapProviderUnavailable = false;
+      _resolveMapProvider();
+    });
     ref.listen<AppSettings>(settingsProvider, (previous, next) {
       if (previous?.showSatellite == next.showSatellite) return;
-      final source = ref.read(providerResolverProvider).mapSource();
+      final resolver = ref.read(providerResolverProvider);
+      final source = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
       _controller.setExternalSatelliteEnabled(source.styleUrl != null && next.showSatellite);
     });
     final config = ref.watch(appConfigProvider);
     final settings = ref.watch(settingsProvider);
+    final resolver = ref.watch(providerResolverProvider);
+    final effectiveSource = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
     final style = _buildStyle(context);
-    final hasTiles = ref.watch(providerResolverProvider).mapSource().available;
+    final hasTiles = effectiveSource.available;
+    final usingFallback = _activeTilesProvider != null &&
+        _activeTilesProvider!.id != resolver.selected(ServiceCategory.tiles).id &&
+        !_mapProviderUnavailable;
     final fix = ref.read(locationFixOnceProvider);
     final target = widget.initialTarget ?? fix ?? const GeoPoint(46.6, 2.4);
     final zoom = widget.initialTarget != null || fix != null ? widget.initialZoom : 5.2;
@@ -998,7 +1089,8 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
             widget.onReady(_controller);
           },
           onStyleLoadedCallback: () {
-            final source = ref.read(providerResolverProvider).mapSource();
+            final currentResolver = ref.read(providerResolverProvider);
+            final source = currentResolver.mapSource(provider: _activeTilesProvider ?? currentResolver.selected(ServiceCategory.tiles));
             _controller.setExternalSatelliteEnabled(source.styleUrl != null && ref.read(settingsProvider).showSatellite);
             _controller.reapply();
           },
@@ -1023,6 +1115,61 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
           tiltGesturesEnabled: widget.interactive && !widget.lockNorth,
           minMaxZoomPreference: const ml.MinMaxZoomPreference(2, 20),
         ),
+        if (_mapProviderUnavailable && hasTiles)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.paddingOf(context).top + 72,
+            child: Material(
+              color: cs.errorContainer,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.wifi_off_rounded, color: cs.onErrorContainer),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Aucun fournisseur cartographique ne répond. Vérifiez la connexion ou choisissez un autre service dans Réglages > Services.',
+                        style: TextStyle(color: cs.onErrorContainer, fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Réessayer',
+                      onPressed: _resolveMapProvider,
+                      icon: Icon(Icons.refresh_rounded, color: cs.onErrorContainer),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (usingFallback)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.paddingOf(context).top + 72,
+            child: Material(
+              color: cs.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz_rounded, color: cs.onSurface),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Le fournisseur principal est indisponible. Strasse utilise temporairement ${_activeTilesProvider!.name}.',
+                        style: TextStyle(color: cs.onSurface, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (!hasTiles)
           Positioned(
             left: 16,
