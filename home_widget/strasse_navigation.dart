@@ -115,6 +115,3 @@ import 'package:home_widget_generator/home_widget_generator.dart';
   ),
 )
 class StrasseNavigation {}
-
-
-class StrasseNavigation {}
