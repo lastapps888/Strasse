@@ -441,29 +441,89 @@ class StrasseMapController {
     }
   }
 
-  /// Lieu déjà repéré par un badge ou un nom sur la carte, sous le point touché (null si rien n'y est affiché).
+  static const Set<String> _renderedPoiClasses = {
+    'amenity',
+    'shop',
+    'tourism',
+    'leisure',
+    'historic',
+    'healthcare',
+    'office',
+    'craft',
+    'club',
+    'sport',
+    'railway',
+    'public_transport',
+    'aeroway',
+    'natural',
+    'man_made',
+    'emergency',
+    'place',
+  };
+
+  /// Convertit une entité ponctuelle rendue par le style MapLibre en lieu Strasse.
+  /// Le filtrage par couche source ou classe évite d'ouvrir une fiche sur les routes et polygones ordinaires.
+  static Place? placeFromRenderedFeature(Object? feature) {
+    if (feature is! Map) return null;
+    final properties = feature['properties'];
+    final geometry = feature['geometry'];
+    if (properties is! Map || geometry is! Map || geometry['type'] != 'Point') return null;
+    final coordinates = geometry['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 || coordinates[0] is! num || coordinates[1] is! num) return null;
+
+    final sourceLayer = feature['sourceLayer'] ?? feature['source-layer'];
+    final layer = feature['layer'];
+    final layerId = layer is Map ? layer['id'] : null;
+    final layerName = '${sourceLayer ?? layerId ?? ''}'.toLowerCase();
+    final cls = properties['class'] is String ? (properties['class'] as String).toLowerCase() : '';
+    final sub = properties['subclass'] is String ? (properties['subclass'] as String) : null;
+    final isPoiLayer = layerName.contains('poi') ||
+        layerName.contains('amenit') ||
+        layerName.contains('shop') ||
+        layerName.contains('tourism') ||
+        layerName.contains('transit');
+    if (!isPoiLayer && !_renderedPoiClasses.contains(cls)) return null;
+
+    final nameCandidates = [
+      properties['name:fr'],
+      properties['name'],
+      properties['name:en'],
+      properties['name:de'],
+      properties['official_name'],
+      properties['brand'],
+    ];
+    final name = nameCandidates.whereType<String>().map((value) => value.trim()).firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    if (name.isEmpty) return null;
+
+    final lon = (coordinates[0] as num).toDouble();
+    final lat = (coordinates[1] as num).toDouble();
+    if (!lat.isFinite || !lon.isFinite || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    final id = feature['id']?.toString();
+    final stableId = id == null || id.isEmpty ? '${lat.toStringAsFixed(6)},${lon.toStringAsFixed(6)}' : id;
+    return Place(
+      id: 'map:$stableId',
+      name: name,
+      point: GeoPoint(lat, lon),
+      category: sub ?? (cls.isEmpty ? null : cls),
+      source: 'map',
+    );
+  }
+
+  /// Lieu déjà repéré dans la zone touchée. Interroge le style chargé plutôt que des identifiants
+  /// de couches propriétaires qui n'existent pas chez tous les fournisseurs MapLibre.
   Future<Place?> placeAt(math.Point<double> screen) async {
     final c = _c;
     if (c == null) return null;
     try {
       final rect = Rect.fromCenter(center: Offset(screen.x, screen.y), width: 36, height: 36);
-      final found = await c.queryRenderedFeaturesInRect(rect, const ['poi-dots', 'poi-labels'], null);
-      for (final f in found) {
-        if (f is! Map) continue;
-        final props = f['properties'];
-        final geom = f['geometry'];
-        if (props is! Map || geom is! Map) continue;
-        final coords = geom['coordinates'];
-        if (coords is! List || coords.length < 2) continue;
-        final name = '${props['name:fr'] ?? props['name'] ?? ''}'.trim();
-        if (name.isEmpty) continue;
-        final cls = props['class'] is String ? props['class'] as String : null;
-        final sub = props['subclass'] is String ? props['subclass'] as String : null;
-        final lon = (coords[0] as num).toDouble();
-        final lat = (coords[1] as num).toDouble();
-        return Place(id: 'map:${lat.toStringAsFixed(6)},${lon.toStringAsFixed(6)}', name: name, point: GeoPoint(lat, lon), category: sub ?? cls, source: 'map');
+      final found = await c.queryRenderedFeaturesInRect(rect, null, null);
+      for (final feature in found) {
+        final place = placeFromRenderedFeature(feature);
+        if (place != null) return place;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Les styles sans requête de features disponible conservent le geste de carte normal.
+    }
     return null;
   }
 
