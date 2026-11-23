@@ -373,8 +373,9 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choisir la zone')),
-      body: Column(
-        children: [
+      body: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
           Expanded(
             child: LayoutBuilder(
               builder: (context, box) {
@@ -413,8 +414,12 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
               },
             ),
           ),
-          Material(
-            color: context.sc.panel,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.58),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Material(
+                color: context.sc.panel,
             elevation: 12,
             child: Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + padding.bottom),
@@ -453,8 +458,11 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
                 ],
               ),
             ),
+              ),
+            ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
