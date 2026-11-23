@@ -62,7 +62,7 @@ void main() {
         _jsonResponse('{"status":"ok"}', 200),
         _jsonResponse('"2026-11-23T10:15:30.000Z"', 200),
       ]);
-      final dio = Dio()..httpClientAdapter = adapter;
+      final dio = Dio(BaseOptions(validateStatus: (_) => true))..httpClientAdapter = adapter;
 
       final result = await ProviderTester(_resolver(), dio: dio)
           .test(ProviderCatalog.recommendedFor(ServiceCategory.account));
@@ -86,7 +86,7 @@ void main() {
           404,
         ),
       ]);
-      final dio = Dio()..httpClientAdapter = adapter;
+      final dio = Dio(BaseOptions(validateStatus: (_) => true))..httpClientAdapter = adapter;
 
       final result = await ProviderTester(_resolver(), dio: dio)
           .test(ProviderCatalog.recommendedFor(ServiceCategory.account));
@@ -102,7 +102,7 @@ void main() {
       final adapter = _QueueAdapter([
         _jsonResponse('{"message":"Invalid API key"}', 401),
       ]);
-      final dio = Dio()..httpClientAdapter = adapter;
+      final dio = Dio(BaseOptions(validateStatus: (_) => true))..httpClientAdapter = adapter;
 
       final result = await ProviderTester(_resolver(), dio: dio)
           .test(ProviderCatalog.recommendedFor(ServiceCategory.account));
