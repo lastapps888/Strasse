@@ -17,7 +17,7 @@ import 'package:strasse/features/settings/settings_model.dart';
 
 /// Épingle affichée sur la carte (destination, étape, résultat de recherche…).
 class MapPin {
-  const MapPin({required this.id, required this.point, required this.color, this.radius = 9, this.onTap});
+  const MapPin({required this.id, required this.point, required this.color, this.radius = 9, this.onTap, this.iconImage});
   final String id;
   final GeoPoint point;
   final Color color;
@@ -652,8 +652,6 @@ class StrasseMapController {
             iconImage: image,
             iconSize: 0.9,
             iconAnchor: 'bottom',
-            iconAllowOverlap: true,
-            iconIgnorePlacement: true,
           ));
           _symbolToPin[symbol.id] = p;
           continue;
