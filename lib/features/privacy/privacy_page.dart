@@ -14,6 +14,7 @@ class PrivacyPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final c = ref.read(settingsProvider.notifier);
+    final actions = ref.read(dataActionsProvider);
     final api = ref.watch(strasseApiProvider);
     final signedIn = ref.watch(authProvider).signedIn;
 
@@ -76,6 +77,61 @@ class PrivacyPage extends ConsumerWidget {
         ),
         const _Doc(icon: Icons.location_on_outlined, title: 'Position GPS', text: 'Elle reste sur l\'appareil. Elle n\'est utilisée que pendant l\'utilisation de l\'application (aucune autorisation « toujours »).'),
         const _Doc(icon: Icons.block_rounded, title: 'Ce que Strasse ne fait pas', text: 'Aucune publicité, aucun traceur, aucune télémétrie, aucun partage de données avec des tiers.'),
+        const SectionTitle('Effacer'),
+        ListTile(
+          leading: const Icon(Icons.history_rounded),
+          title: const Text('Effacer l\'historique des trajets'),
+          onTap: () async {
+            if (await confirm(context, title: 'Effacer l\'historique ?', message: 'Tous les trajets et les statistiques seront supprimés de cet appareil.', confirmLabel: 'Effacer')) {
+              await actions.clearHistory();
+              if (context.mounted) showMessage(context, 'Historique effacé.');
+            }
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.search_off_rounded),
+          title: const Text('Effacer les recherches et lieux récents'),
+          onTap: () async {
+            await actions.clearSearchData();
+            if (context.mounted) showMessage(context, 'Recherches effacées.');
+          },
+        ),
+        ListTile(
+          leading: Icon(Icons.restart_alt_rounded, color: context.cs.error),
+          title: const Text('Réinitialiser l\'identifiant anonyme'),
+          subtitle: const Text('Génère un nouvel identifiant pour les signalements'),
+          onTap: () async {
+            await ref.read(secureStoreProvider).rotateInstallId();
+            if (context.mounted) showMessage(context, 'Identifiant anonyme renouvelé.');
+          },
+        ),
+        ListTile(
+          leading: Icon(Icons.delete_forever_rounded, color: context.cs.error),
+          title: Text('Effacer toutes les données locales', style: TextStyle(color: context.cs.error)),
+          subtitle: const Text('Favoris, collections, historique, voyages, recherches et cartes téléchargées'),
+          onTap: () async {
+            final ok = await confirm(
+              context,
+              title: 'Tout effacer sur cet appareil ?',
+              message: 'Favoris, collections, historique, voyages planifiés, recherches et cartes téléchargées seront supprimés définitivement. '
+                  'Si vous avez un compte, les données du serveur ne sont pas touchées (supprimez le compte pour cela).',
+              confirmLabel: 'Tout effacer',
+            );
+            if (!ok) return;
+            await actions.wipeAllLocalData();
+            if (context.mounted) showMessage(context, 'Données locales effacées.');
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.settings_backup_restore_rounded),
+          title: const Text('Réinitialiser les réglages'),
+          onTap: () async {
+            if (await confirm(context, title: 'Réinitialiser les réglages ?', message: 'Les réglages reviennent à leur valeur d\'origine (adresses de serveurs comprises). Vos données ne sont pas supprimées.', confirmLabel: 'Réinitialiser')) {
+              await c.reset();
+              if (context.mounted) showMessage(context, 'Réglages réinitialisés.');
+            }
+          },
+        ),
         const SizedBox(height: 24),
       ],
     );

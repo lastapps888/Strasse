@@ -159,9 +159,6 @@ class MusicController extends StateNotifier<MusicState> {
     if (b is SpotifyBackend && await b.restore()) state = state.copyWith(connected: true);
     // Apple Music : relit l'autorisation système déjà donnée et le statut d'abonnement, sans nouvel écran.
     if (b is AppleMusicBackend && await b.restore()) state = state.copyWith(connected: true);
-    // Musique locale : restaure les fichiers importés et relit les permissions déjà accordées,
-    // sans redemander l'accès à chaque ouverture de Strasse.
-    if (b is LocalMusicBackend && await b.restore()) state = state.copyWith(connected: true);
     if (connect && !state.connected && s != MusicSource.spotify && s != MusicSource.appleMusic && s != MusicSource.deezer) await this.connect();
     if (state.connected) _startTimer();
   }

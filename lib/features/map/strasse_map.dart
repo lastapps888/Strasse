@@ -237,8 +237,9 @@ class StrasseMapController {
         final layers = decoded is Map ? decoded['layers'] : null;
         if (layers is List) {
           for (final layer in layers) {
-            // Insérer l'image sous la première couche de routes ou de symboles afin de préserver les libellés.
-            if (layer is Map && layer['id'] is String && const {'line', 'symbol'}.contains(layer['type'])) {
+            if (layer is Map &&
+                layer['id'] is String &&
+                const {'line', 'symbol', 'fill-extrusion'}.contains(layer['type'])) {
               belowLayerId = layer['id'] as String;
               break;
             }
@@ -1194,53 +1195,23 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
               ),
             ),
           ),
-        // Les crédits obligatoires restent disponibles, mais prennent désormais la place d'une simple icône.
+        // Crédits obligatoires : OpenStreetMap + fournisseur de tuiles.
         Positioned(
           left: 8,
           bottom: widget.attributionBottomPadding,
-          child: Material(
-            color: cs.surface.withOpacity(0.92),
-            shape: const CircleBorder(),
-            elevation: 2,
-            child: IconButton(
-              tooltip: 'Sources et crédits cartographiques',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.info_outline_rounded, size: 20),
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                builder: (sheetContext) => SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Sources et crédits cartographiques', style: Theme.of(sheetContext).textTheme.titleLarge),
-                        const SizedBox(height: 12),
-                        SelectableText(AppConfig.osmAttribution),
-                        if (config.tilesAttribution.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          SelectableText(config.tilesAttribution),
-                        ],
-                        if (settings.showSatellite) ...[
-                          const SizedBox(height: 8),
-                          const Text('EOxCloudless · EOX IT Services GmbH · données Copernicus Sentinel-2 (2016–2017).'),
-                          const SizedBox(height: 6),
-                          const Text('Orthophotographies © IGN · Licence Ouverte.'),
-                        ],
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () => launchUrl(Uri.parse(AppConfig.osmCopyrightUrl), mode: LaunchMode.externalApplication),
-                            icon: const Icon(Icons.open_in_new_rounded),
-                            label: const Text('Crédits OpenStreetMap'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+          child: GestureDetector(
+            onTap: () => launchUrl(Uri.parse(AppConfig.osmCopyrightUrl), mode: LaunchMode.externalApplication),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: cs.surface.withOpacity(0.8), borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                [
+                  AppConfig.osmAttribution,
+                  if (config.tilesAttribution.isNotEmpty) config.tilesAttribution,
+                  if (settings.showSatellite) 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
+                  if (settings.showSatellite) 'Orthophotographies © IGN (Licence Ouverte)',
+                ].join(' · '),
+                style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.8)),
               ),
             ),
           ),

@@ -60,23 +60,8 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
       });
     } catch (e) {
       if (mounted) {
-        final failure = toFailure(e);
-        final online = ref.read(onlineProvider).valueOrNull ?? true;
-        final displayedError = failure.code == 'connection_error'
-            ? (online
-                ? const Failure(
-                    FailureKind.server,
-                    'Le serveur de retours est injoignable. Votre connexion Internet fonctionne, mais le message n’a pas été envoyé.',
-                    code: 'feedback_server_unreachable',
-                  )
-                : const Failure(
-                    FailureKind.offline,
-                    'Vous êtes hors connexion. Reconnectez-vous puis réessayez.',
-                    code: 'offline',
-                  ))
-            : e;
         setState(() {
-          _error = displayedError;
+          _error = e;
           _sending = false;
         });
       }

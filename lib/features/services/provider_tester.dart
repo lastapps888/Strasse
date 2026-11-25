@@ -67,21 +67,6 @@ class ProviderTester {
         final text = '${r.data}';
         if (_ok(r) && (text.contains('slots') || text.contains('Connected as') || text.contains('Rate limit'))) return (true, 'Overpass opérationnel.');
         return (false, 'Réponse inattendue (${r.statusCode}) : pas de /status Overpass valide.');
-      case 'overpass-poi':
-        final roadData = resolver.selected(ServiceCategory.roadData);
-        final overpassUrl = ProviderResolver.normalize(resolver.urlOf(roadData));
-        if (overpassUrl.isEmpty) return (false, 'Aucun serveur Overpass configuré dans « Données routières ».');
-        const query = '[out:json][timeout:12];nwr(around:100,48.8566,2.3522);out count;';
-        final poiResponse = await _dio.post<Object>(
-          overpassUrl,
-          data: 'data=${Uri.encodeQueryComponent(query)}',
-          options: Options(contentType: Headers.formUrlEncodedContentType),
-        );
-        final payload = _json(poiResponse.data);
-        if (_ok(poiResponse) && payload is Map && payload['elements'] is List) {
-          return (true, 'Overpass opérationnel : le service de lieux reçoit une réponse valide.');
-        }
-        return (false, 'Réponse Overpass invalide (${poiResponse.statusCode}).');
       case 'formsubmit':
         // Pas d'envoi de test (il enverrait un vrai message) : on vérifie seulement que le service répond.
         final r = await _dio.get<Object>(base);

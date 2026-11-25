@@ -7,7 +7,6 @@ import 'package:strasse/app/widgets/nav_helpers.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/features/library/library_screen.dart';
 import 'package:strasse/features/music/music_screen.dart';
-import 'package:strasse/features/music/music_widgets.dart';
 import 'package:strasse/features/home/home_screen.dart';
 import 'package:strasse/features/map/map_screen.dart';
 import 'package:strasse/features/settings/settings_screen.dart';
@@ -60,25 +59,18 @@ class AppShell extends ConsumerWidget {
         ref.read(shellIndexProvider.notifier).state = 0;
       },
       child: Scaffold(
-        extendBody: false,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: landscape
-                  ? Row(
-                      children: [
-                        _SideRail(items: items, index: index, showLabels: s.showNavLabels, onTap: onTap),
-                        Expanded(
-                          // La barre latérale occupe déjà la zone de sécurité de gauche : le contenu ne la compte pas deux fois.
-                          child: MediaQuery.removePadding(context: context, removeLeft: true, child: stack),
-                        ),
-                      ],
-                    )
-                  : stack,
-            ),
-            if (s.showFloatingMusicPlayer) const FloatingMiniPlayerOverlay(),
-          ],
-        ),
+        extendBody: !landscape,
+        body: landscape
+            ? Row(
+                children: [
+                  _SideRail(items: items, index: index, showLabels: s.showNavLabels, onTap: onTap),
+                  Expanded(
+                    // La barre latérale occupe déjà la zone de sécurité de gauche : le contenu ne la compte pas deux fois.
+                    child: MediaQuery.removePadding(context: context, removeLeft: true, child: stack),
+                  ),
+                ],
+              )
+            : stack,
         bottomNavigationBar: landscape
             ? null
             : _FloatingNavBar(

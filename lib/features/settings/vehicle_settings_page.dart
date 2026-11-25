@@ -128,7 +128,8 @@ class VehicleSettingsPage extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           child: Text(
-            'La limite affichée est une indication cartographique. La signalisation sur place et le code de la route local font foi.',
+            'Les limites viennent d\'OpenStreetMap (balise maxspeed) : elles peuvent être absentes, anciennes ou erronées, et ne remplacent pas la signalisation. '
+            'Respectez toujours les panneaux et le code de la route local.',
             style: context.tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
           ),
         ),

@@ -261,14 +261,9 @@ class _TransitItineraryPageState extends ConsumerState<TransitItineraryPage> {
   Widget _realtimeNote(BuildContext context) {
     final real = _it.legs.any((l) => !l.isWalk && l.realTime);
     final allReal = _it.legs.where((l) => !l.isWalk).every((l) => l.realTime);
-    // Les horaires théoriques restent visibles dans chaque étape ; ne pas afficher un avertissement global
-    // qui donne l'impression que l'itinéraire est invalide quand aucun flux temps réel n'est publié.
-    if (!real) return const SizedBox.shrink();
-    final text = allReal
-        ? 'Horaires actualisés en temps réel.'
-        : 'Temps réel disponible sur une partie du trajet.';
+    final text = real ? (allReal ? 'Horaires en temps réel (flux de l’opérateur).' : 'Temps réel sur une partie du trajet ; les autres horaires sont théoriques.') : 'Horaires théoriques (plan de service) : aucun temps réel publié pour ce trajet.';
     return Row(children: [
-      Icon(Icons.sensors_rounded, size: 16, color: context.sc.success),
+      Icon(real ? Icons.sensors_rounded : Icons.schedule_rounded, size: 16, color: real ? context.sc.success : context.cs.onSurfaceVariant),
       const SizedBox(width: 6),
       Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5))),
     ]);

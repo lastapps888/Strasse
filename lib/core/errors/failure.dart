@@ -38,13 +38,7 @@ class Failure implements Exception {
     if (e.type.name.toLowerCase().contains('timeout')) {
       return const Failure(FailureKind.timeout, 'Le serveur met trop de temps à répondre. Réessayez.', code: 'timeout');
     }
-    if (e.type == DioExceptionType.connectionError) {
-      return const Failure(
-        FailureKind.server,
-        'Le serveur est injoignable. Votre connexion peut fonctionner normalement ; réessayez plus tard.',
-        code: 'connection_error',
-      );
-    }
+    if (e.type == DioExceptionType.connectionError) return Failure.offline();
     if (e.type == DioExceptionType.cancel) {
       return const Failure(FailureKind.unknown, 'Opération annulée.', code: 'cancelled');
     }
@@ -80,7 +74,7 @@ class Failure implements Exception {
     if (status != null && status >= 400) {
       return Failure(FailureKind.client, serverMessage ?? 'Requête refusée par le serveur ($status).', code: code);
     }
-    return Failure.unknown(e);
+    return Failure.offline();
   }
 
   @override

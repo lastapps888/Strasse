@@ -45,12 +45,6 @@ class AppearancePage extends ConsumerWidget {
         SwitchRow(title: 'Couleurs dynamiques (Material You)', subtitle: 'Reprend les couleurs de votre fond d\'écran sur Android 12 et plus. Sur iOS et les anciens Android, le vert Strasse est conservé.', value: s.useDynamicColor, onChanged: (v) => c.update((x) => x.copyWith(useDynamicColor: v))),
         SwitchRow(title: 'Interface compacte', value: s.compactUi, onChanged: (v) => c.update((x) => x.copyWith(compactUi: v))),
         SwitchRow(title: 'Libellés de la barre d\'onglets', value: s.showNavLabels, onChanged: (v) => c.update((x) => x.copyWith(showNavLabels: v))),
-        SwitchRow(
-          title: 'Lecteur musical flottant',
-          subtitle: 'Afficher un mini-lecteur déplaçable au-dessus des onglets, y compris pendant un trajet.',
-          value: s.showFloatingMusicPlayer,
-          onChanged: (v) => c.update((x) => x.copyWith(showFloatingMusicPlayer: v)),
-        ),
         const SectionTitle('Écran d\'accueil'),
         const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('Activez, désactivez et réordonnez les sections.', style: TextStyle(fontSize: 13))),
         const _HomeSectionsEditor(),
