@@ -427,7 +427,14 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Déplacez et zoomez la carte, puis tirez les poignées du cadre pour l\'étirer dans la forme voulue (jusqu\'à 1 000 × 1 000 km).', style: TextStyle(fontSize: 13)),
+                  const Text('Déplacez et zoomez la carte, puis tirez les poignées du cadre pour l\'étirer dans la forme voulue.', style: TextStyle(fontSize: 13)),
+                  const SizedBox(height: 6),
+                  const InfoBanner(
+                    icon: Icons.info_outline_rounded,
+                    tone: BannerTone.info,
+                    compact: true,
+                    message: 'Avec OpenFreeMap, chaque téléchargement est limité à 3 000 tuiles et 50 Mo. Strasse ajuste automatiquement le zoom ; pour couvrir une plus grande zone, créez plusieurs zones distinctes.',
+                  ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     value: _level,

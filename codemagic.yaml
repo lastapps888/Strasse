@@ -45,10 +45,28 @@ workflows:
         script: flutter pub get
 
       - name: Build Android APK
-        script: flutter build apk --release
+        script: |
+          set -e
+          DEFINES=()
+          for NAME in STRASSE_ENV STRASSE_API_URL STRASSE_TILES_URL STRASSE_TILES_ATTRIBUTION STRASSE_GLYPHS_URL STRASSE_MAP_FONT STRASSE_VALHALLA_URL STRASSE_GEOCODER_URL STRASSE_OTP_URL STRASSE_OVERPASS_URL STRASSE_SUPABASE_URL STRASSE_SUPABASE_ANON_KEY STRASSE_OPENTRIPMAP_KEY STRASSE_SPOTIFY_CLIENT_ID STRASSE_YOUTUBE_IOS_CLIENT_ID STRASSE_YOUTUBE_SERVER_CLIENT_ID STRASSE_GOOGLE_PLACES_API_KEY STRASSE_CONTACT; do
+            VALUE="$(printenv "$NAME" || true)"
+            if [ -n "$VALUE" ]; then
+              DEFINES+=("--dart-define=$NAME=$VALUE")
+            fi
+          done
+          flutter build apk --release "${DEFINES[@]}"
 
       - name: Build iOS
-        script: flutter build ios --release --no-codesign
+        script: |
+          set -e
+          DEFINES=()
+          for NAME in STRASSE_ENV STRASSE_API_URL STRASSE_TILES_URL STRASSE_TILES_ATTRIBUTION STRASSE_GLYPHS_URL STRASSE_MAP_FONT STRASSE_VALHALLA_URL STRASSE_GEOCODER_URL STRASSE_OTP_URL STRASSE_OVERPASS_URL STRASSE_SUPABASE_URL STRASSE_SUPABASE_ANON_KEY STRASSE_OPENTRIPMAP_KEY STRASSE_SPOTIFY_CLIENT_ID STRASSE_YOUTUBE_IOS_CLIENT_ID STRASSE_YOUTUBE_SERVER_CLIENT_ID STRASSE_GOOGLE_PLACES_API_KEY STRASSE_CONTACT; do
+            VALUE="$(printenv "$NAME" || true)"
+            if [ -n "$VALUE" ]; then
+              DEFINES+=("--dart-define=$NAME=$VALUE")
+            fi
+          done
+          flutter build ios --release --no-codesign "${DEFINES[@]}"
 
       - name: Package unsigned IPA
         script: |

@@ -21,7 +21,7 @@ class Failure implements Exception {
 
   factory Failure.offline() => const Failure(
         FailureKind.offline,
-        'Connexion impossible. Vérifiez votre réseau puis réessayez.',
+        'Aucune connexion Internet n’est disponible. Réessayez lorsque l’appareil sera connecté.',
         code: 'offline',
       );
 

@@ -523,7 +523,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         if (_selected != null)
           Positioned(
-            top: padding.top + 72,
+            top: 0,
             left: 12,
             right: isLandscape ? MediaQuery.sizeOf(context).width * 0.45 : 12,
             bottom: 0,

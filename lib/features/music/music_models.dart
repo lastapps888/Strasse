@@ -5,6 +5,7 @@ enum MusicSource {
   spotify('Spotify', Icons.music_note_rounded),
   appleMusic('Apple Music', Icons.apple_rounded),
   deezer('Deezer', Icons.graphic_eq_rounded),
+  youtubeMusic('YouTube Music', Icons.smart_display_rounded),
   local('Sur l\'appareil', Icons.phone_android_rounded);
 
   const MusicSource(this.label, this.icon);

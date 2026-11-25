@@ -361,6 +361,23 @@ class ProviderCatalog {
       features: ['Cuisine', 'Horaires', 'Site Internet'],
     ),
 
+    ServiceProvider(
+      id: 'google-places-reviews',
+      category: ServiceCategory.googlePlacesReviews,
+      name: 'Google Places — Notes et avis',
+      description: 'Récupère la note, le nombre de notes et jusqu’à cinq avis publics pour un lieu correspondant.',
+      kind: ProviderKind.credentials,
+      baseUrl: 'https://places.googleapis.com/v1',
+      adapter: 'google-places',
+      recommended: true,
+      fields: [ProviderField('apiKey', 'Clé API Google Places', secret: true, hint: 'Clé API avec Places API (New) activée')],
+      license: 'Données et attribution Google Maps.',
+      termsUrl: 'https://maps.google.com/help/terms_maps/',
+      docUrl: 'https://developers.google.com/maps/documentation/places/web-service/place-details',
+      limits: 'Clé Google Places et facturation Google Cloud requises. Les champs rating et userRatingCount relèvent du SKU Enterprise ; les avis relèvent du SKU Enterprise + Atmosphere et peuvent entraîner des frais. La recherche n’affiche rien si aucun lieu suffisamment proche et correspondant n’est trouvé.',
+      features: ['Note moyenne', 'Nombre de notes', 'Jusqu’à 5 avis', 'Lien Google Maps'],
+    ),
+
     // ------------------------------------------------------------------ Réservations
     ServiceProvider(
       id: 'booking-official',
@@ -514,18 +531,33 @@ class ProviderCatalog {
 
     // ------------------------------------------------------------------ Musique
     ServiceProvider(
+      id: 'youtube-music',
+      category: ServiceCategory.youtubeMusic,
+      name: 'YouTube Music — Google OAuth',
+      description: 'Connexion à votre compte Google, recherche de vidéos musicales et consultation de vos playlists privées.',
+      kind: ProviderKind.native,
+      adapter: 'youtube-music',
+      recommended: true,
+      license: 'Conditions YouTube API Services.',
+      termsUrl: 'https://www.youtube.com/t/terms',
+      docUrl: 'https://developers.google.com/youtube/v3',
+      limits: 'Nécessite YouTube Data API v3 activée dans un projet Google Cloud et des identifiants OAuth iOS/Web configurés dans Codemagic. La lecture audio et les commandes restent dans l’application YouTube Music : l’API ne donne pas de flux audio à Strasse.',
+      features: ['Connexion Google', 'Playlists privées', 'Recherche musicale', 'Ouverture dans YouTube Music'],
+    ),
+    ServiceProvider(
       id: 'spotify-web',
       category: ServiceCategory.spotify,
       name: 'Spotify — API Web (PKCE)',
-      description: 'Connexion à votre compte Spotify par OAuth PKCE et contrôle de l’application Spotify installée. Le Client ID est fourni par l’éditeur de Strasse : aucune clé ni configuration Spotify ne doit être demandée à l’utilisateur.',
+      description: 'Connexion à votre compte Spotify par OAuth PKCE et contrôle de l’application Spotify installée. Le Client ID public est configurable dans Réglages > Services > Spotify > Identifiants. Aucun secret Spotify n'est nécessaire dans l'application.',
       baseUrl: 'https://api.spotify.com/v1',
       adapter: 'spotify',
-      kind: ProviderKind.native,
+      kind: ProviderKind.credentials,
+      fields: [ProviderField('clientId', 'Client ID Spotify', hint: 'Identifiant public de votre application dans Spotify Developer Dashboard')],
       recommended: true,
       license: 'Conditions Spotify Developer.',
       termsUrl: 'https://developer.spotify.com/terms',
       docUrl: 'https://developer.spotify.com/documentation/web-api',
-      limits: 'Strasse commande l’application Spotify ; elle ne lit pas le flux audio. Les commandes de lecture exigent Spotify Premium. En mode développement, le propriétaire doit avoir Premium et seuls 5 utilisateurs Spotify autorisés (allowlist) peuvent utiliser l’application. Le quota étendu pour une diffusion publique n’est accepté que sur candidature d’une organisation répondant aux critères de Spotify ; sans Client ID éditeur et validation du quota étendu, la connexion publique n’est pas disponible.',
+      limits: 'Strasse commande l’application Spotify ; elle ne lit pas le flux audio. Les commandes de lecture exigent Spotify Premium. En mode développement, le propriétaire doit avoir Premium et seuls 5 utilisateurs Spotify autorisés (allowlist) peuvent utiliser l’application. Le quota étendu pour une diffusion publique n’est accepté que sur candidature d’une organisation répondant aux critères de Spotify ; sans Client ID propre et validation du quota étendu, la connexion publique reste limitée au mode développement.',
       features: ['Lecture / pause / suivant / précédent', 'Volume', 'Aléatoire / répétition', 'Playlists', 'Recherche'],
     ),
     ServiceProvider(

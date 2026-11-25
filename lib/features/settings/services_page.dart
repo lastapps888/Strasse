@@ -38,10 +38,10 @@ const List<(String, IconData, List<ServiceCategory>)> _sections = [
   ('Carte', Icons.map_outlined, [ServiceCategory.tiles, ServiceCategory.glyphs]),
   ('Recherche', Icons.search_rounded, [ServiceCategory.geocoding, ServiceCategory.reverse]),
   ('Itinéraires', Icons.alt_route_rounded, [ServiceCategory.routing, ServiceCategory.transit, ServiceCategory.roadData]),
-  ('Lieux et réservations', Icons.hotel_outlined, [ServiceCategory.tourism, ServiceCategory.hotels, ServiceCategory.restaurants, ServiceCategory.booking]),
+  ('Lieux et réservations', Icons.hotel_outlined, [ServiceCategory.tourism, ServiceCategory.hotels, ServiceCategory.restaurants, ServiceCategory.booking, ServiceCategory.googlePlacesReviews]),
   ('Trafic, compte et synchronisation', Icons.cloud_sync_outlined, [ServiceCategory.traffic, ServiceCategory.reports, ServiceCategory.account]),
   ('Retours', Icons.feedback_outlined, [ServiceCategory.feedback]),
-  ('Musique', Icons.library_music_outlined, [ServiceCategory.spotify, ServiceCategory.appleMusic, ServiceCategory.deezer, ServiceCategory.localMusic]),
+  ('Musique', Icons.library_music_outlined, [ServiceCategory.spotify, ServiceCategory.appleMusic, ServiceCategory.deezer, ServiceCategory.youtubeMusic, ServiceCategory.localMusic]),
 ];
 
 class _ServicesPageState extends ConsumerState<ServicesPage> {

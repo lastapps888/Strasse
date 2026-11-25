@@ -48,7 +48,17 @@ class PrivacyPage extends ConsumerWidget {
         const _Doc(
           icon: Icons.feedback_outlined,
           title: 'Retours (feedback)',
-          text: 'Rien n\'est envoyé tant que vous n\'appuyez pas sur « Envoyer » dans Réglages > Envoyer un retour. Seul le texte que vous écrivez part, par le service FormSubmit, vers l\'adresse du projet.',
+          text: 'Rien n\'est envoyé tant que vous n\'appuyez pas sur « Envoyer » dans Réglages > Envoyer un retour. Seul le texte que vous écrivez part, par le serveur d’envoi du projet, vers l’adresse de destination configurée.',
+        ),
+        const _Doc(
+          icon: Icons.music_note_rounded,
+          title: 'YouTube Music',
+          text: 'La connexion Google utilise une autorisation YouTube en lecture seule pour afficher les playlists et les résultats de recherche. La lecture est ouverte dans l’application YouTube Music ; Strasse ne récupère ni ne télécharge le flux audio.',
+        ),
+        const _Doc(
+          icon: Icons.star_outline_rounded,
+          title: 'Notes et avis Google Maps',
+          text: 'Si Google Places est configuré dans Réglages > Services, le nom du lieu et ses coordonnées approximatives sont envoyés à Google pour rechercher la fiche correspondante et afficher sa note et ses avis. Ce service nécessite une clé API et peut entraîner des frais selon l’usage.',
         ),
         const _Doc(
           icon: Icons.search_rounded,

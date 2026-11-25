@@ -18,6 +18,9 @@ class AppConfig {
     this.supabaseAnonKey = '',
     this.openTripMapKey = '',
     this.spotifyClientId = '',
+    this.youtubeIosClientId = '',
+    this.youtubeServerClientId = '',
+    this.googlePlacesApiKey = '',
     this.contact = '',
   });
 
@@ -39,6 +42,9 @@ class AppConfig {
     supabaseAnonKey: String.fromEnvironment('STRASSE_SUPABASE_ANON_KEY', defaultValue: defaultSupabasePublishableKey),
     openTripMapKey: String.fromEnvironment('STRASSE_OPENTRIPMAP_KEY'),
     spotifyClientId: String.fromEnvironment('STRASSE_SPOTIFY_CLIENT_ID'),
+    youtubeIosClientId: String.fromEnvironment('STRASSE_YOUTUBE_IOS_CLIENT_ID'),
+    youtubeServerClientId: String.fromEnvironment('STRASSE_YOUTUBE_SERVER_CLIENT_ID'),
+    googlePlacesApiKey: String.fromEnvironment('STRASSE_GOOGLE_PLACES_API_KEY'),
     contact: String.fromEnvironment('STRASSE_CONTACT'),
   );
 
@@ -62,6 +68,9 @@ class AppConfig {
   /// Clé gratuite OpenTripMap, identifiant client Spotify (PKCE, public).
   final String openTripMapKey;
   final String spotifyClientId;
+  final String youtubeIosClientId;
+  final String youtubeServerClientId;
+  final String googlePlacesApiKey;
 
   /// Contact (adresse e-mail ou site) inclus dans le User-Agent, exigé par les politiques d'usage d'OSM.
   final String contact;

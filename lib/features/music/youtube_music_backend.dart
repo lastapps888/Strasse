@@ -35,7 +35,7 @@ class YouTubeMusicBackend implements MusicBackend {
   ];
 
   GoogleSignInAccount? _account;
-  Future<void>? _initialization;
+  static Future<void>? _globalInitialization;
   bool _connected = false;
 
   @override
@@ -75,7 +75,8 @@ class YouTubeMusicBackend implements MusicBackend {
   }
 
   Future<void> _initialize() {
-    return _initialization ??= _signIn.initialize(
+    // GoogleSignIn.instance est un singleton : une seule initialisation même si Riverpod recrée le backend.
+    return _globalInitialization ??= _signIn.initialize(
       clientId: Platform.isIOS ? iosClientId.trim() : null,
       serverClientId: serverClientId.trim(),
     );
@@ -84,11 +85,17 @@ class YouTubeMusicBackend implements MusicBackend {
   /// Restaure une session Google existante sans ouvrir systématiquement l'écran de connexion.
   Future<bool> restore() async {
     if (!await isAvailable()) return false;
-    await _initialize();
-    final attempt = _signIn.attemptLightweightAuthentication();
-    if (attempt != null) _account = await attempt;
-    _connected = _account != null;
-    return _connected;
+    try {
+      await _initialize();
+      final attempt = _signIn.attemptLightweightAuthentication();
+      if (attempt != null) _account = await attempt;
+      _connected = _account != null;
+      return _connected;
+    } catch (_) {
+      _account = null;
+      _connected = false;
+      return false;
+    }
   }
 
   @override
@@ -138,9 +145,8 @@ class YouTubeMusicBackend implements MusicBackend {
       throw const MusicException('Connectez-vous à votre compte Google pour accéder à vos playlists.', needsLogin: true);
     }
     try {
-      final authorization = await account.authorizationClient.authorizationForScopes(_scopes) ??
-          await account.authorizationClient.authorizeScopes(_scopes);
-      if (authorization.accessToken.isEmpty) {
+      final authorization = await account.authorizationClient.authorizationForScopes(_scopes);
+      if (authorization == null || authorization.accessToken.isEmpty) {
         throw const MusicException('Autorisation YouTube expirée. Reconnectez votre compte Google.', needsLogin: true);
       }
       return authorization.accessToken;

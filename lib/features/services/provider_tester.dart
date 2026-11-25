@@ -20,7 +20,7 @@ class ProviderTester {
   final Dio _dio;
 
   /// Vrai si un test réseau a un sens pour ce fournisseur.
-  static bool canTest(ServiceProvider p) => p.kind != ProviderKind.link;
+  static bool canTest(ServiceProvider p) => p.kind != ProviderKind.link && p.adapter != 'google-places';
 
   Future<ProviderTestResult> test(ServiceProvider p) async {
     final sw = Stopwatch()..start();
