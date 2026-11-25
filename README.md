@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lastapps888/Strasse/releases/">
+  <a href="https://github.com/lastapps888/Strasse/releases/download/latest/Strasse.apk">
     <img src="docs/screenshots/download_apk.png" width="150px" alt="Download APK">
   </a>
-  <a href="https://github.com/lastapps888/Strasse/releases/">
+  <a href="https://github.com/lastapps888/Strasse/releases/download/latest/Strasse.ipa">
     <img src="docs/screenshots/Download_ipa.png" width="162px" alt="Download IPA">
   </a>
 </p>
