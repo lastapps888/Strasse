@@ -362,7 +362,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final padding = MediaQuery.paddingOf(context);
     final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape && MediaQuery.sizeOf(context).width >= 560;
     // En paysage, la barre d'onglets est verticale : plus de bande réservée en bas.
-    final navBarSpace = (isLandscape ? 4 : 76) + padding.bottom;
+    final navBarSpace = isLandscape ? 4 + padding.bottom : 8;
     final sheetOpen = _selected != null;
 
     return Stack(
@@ -523,27 +523,50 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         if (_selected != null)
           Positioned(
+            top: padding.top + 72,
             left: 12,
             right: isLandscape ? MediaQuery.sizeOf(context).width * 0.45 : 12,
-            bottom: 12 + (MediaQuery.paddingOf(context).bottom > 0 ? 0 : 0),
-            child: Material(
-              color: context.sc.panel,
-              elevation: 10,
-              borderRadius: BorderRadius.circular(24),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (isLandscape ? 0.8 : 0.55)),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: PlaceSheet(
-                      place: _selected!,
-                      loading: _selectedLoading,
-                      distanceFrom: loc.fix?.point,
-                      onClose: _clearSelection,
-                      onRoute: () => _route(_selected!),
+            bottom: 0,
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.5,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              snap: true,
+              snapSizes: const [0.5, 0.9],
+              builder: (sheetContext, scrollController) => Material(
+                color: context.sc.panel,
+                elevation: 10,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 2),
+                      child: Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: context.cs.onSurfaceVariant.withOpacity(0.45),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: PlaceSheet(
+                            place: _selected!,
+                            loading: _selectedLoading,
+                            distanceFrom: loc.fix?.point,
+                            onClose: _clearSelection,
+                            onRoute: () => _route(_selected!),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

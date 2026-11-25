@@ -233,6 +233,14 @@ class _ServicesPageState extends ConsumerState<ServicesPage> {
   String? _missingConfig(ProviderResolver r, ServiceProvider p) {
     switch (p.kind) {
       case ProviderKind.url:
+        // Les services de lieux utilisent le serveur Overpass commun configuré dans « Données routières ».
+        // Ils ne nécessitent pas d'adresse dédiée dans chaque catégorie.
+        if (p.adapter == 'overpass-poi') {
+          final shared = r.selected(ServiceCategory.roadData);
+          return r.urlOf(shared).isEmpty
+              ? 'Configurez un serveur Overpass dans « Données routières ».'
+              : null;
+        }
         return r.urlOf(p).isEmpty ? 'Aucune adresse renseignée : appuyez sur « + » pour ajouter votre serveur.' : null;
       case ProviderKind.credentials:
         for (final f in p.fields) {

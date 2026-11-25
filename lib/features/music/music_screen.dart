@@ -218,14 +218,6 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
           if (st.source == null)
             const Padding(padding: EdgeInsets.all(16), child: InfoBanner(icon: Icons.library_music_outlined, message: 'Choisissez une source de musique. Spotify et Apple Music se commandent depuis Strasse ; Deezer (extraits) et la musique de l\'appareil sont lues par Strasse.')),
           if (st.unavailable != null) Padding(padding: const EdgeInsets.all(16), child: InfoBanner(icon: Icons.block_rounded, tone: BannerTone.warning, message: st.unavailable!)),
-          if (st.catalogAvailable)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: InfoBanner(
-                icon: Icons.info_outline_rounded,
-                message: 'Catalogue public Deezer : recherche, classements et extraits de 30 secondes sans compte. Strasse ne prétend pas être connectée à votre compte Deezer et ne donne pas accès à votre bibliothèque personnelle ni à la lecture complète.',
-              ),
-            ),
           if (st.error != null) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: InfoBanner(icon: Icons.error_outline_rounded, tone: BannerTone.error, message: st.error!, action: st.needsLogin ? 'Se connecter' : null, onAction: st.needsLogin ? _ctrl.connect : null)),
           if (st.source != null && st.unavailable == null && !st.connected && !st.catalogAvailable) _connectCard(context, st),
           if (st.connected) _nowPlaying(context, st, caps!),

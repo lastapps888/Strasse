@@ -66,14 +66,19 @@ import MusicKit
           for item in items {
             // Les titres protégés (DRM / Apple Music) ou non téléchargés n'ont pas d'adresse de lecture.
             guard let url = item.assetURL else { continue }
-            out.append([
+            var track: [String: Any] = [
               "id": String(item.persistentID),
               "title": item.title ?? "",
               "artist": item.artist ?? "",
               "album": item.albumTitle ?? "",
               "durationMs": Int(item.playbackDuration * 1000),
               "uri": url.absoluteString,
-            ])
+            ]
+            if let image = item.artwork?.image(at: CGSize(width: 256, height: 256)),
+               let artwork = image.jpegData(compressionQuality: 0.82) {
+              track["artwork"] = FlutterStandardTypedData(bytes: artwork)
+            }
+            out.append(track)
           }
           DispatchQueue.main.async { result(out) }
         }
@@ -138,10 +143,15 @@ import MusicKit
           for l in MPMediaQuery.playlists().collections ?? [] where String(l.persistentID) == id {
             for item in l.items {
               guard let url = item.assetURL else { continue }
-              out.append([
+              var track: [String: Any] = [
                 "id": String(item.persistentID), "title": item.title ?? "", "artist": item.artist ?? "",
                 "album": item.albumTitle ?? "", "durationMs": Int(item.playbackDuration * 1000), "uri": url.absoluteString,
-              ])
+              ]
+              if let image = item.artwork?.image(at: CGSize(width: 256, height: 256)),
+                 let artwork = image.jpegData(compressionQuality: 0.82) {
+                track["artwork"] = FlutterStandardTypedData(bytes: artwork)
+              }
+              out.append(track)
             }
           }
           DispatchQueue.main.async { result(out) }
@@ -255,12 +265,13 @@ final class MusicKitBridge {
 
   private func search(_ term: String) async throws -> [String: Any] {
     guard !term.isEmpty else { return ["tracks": [], "collections": []] }
-    var req = MusicCatalogSearchRequest(term: term, types: [Song.self, Album.self, Artist.self])
+    var req = MusicCatalogSearchRequest(term: term, types: [Song.self, Album.self, Artist.self, Playlist.self])
     req.limit = 20
     let res = try await req.response()
     var cols: [[String: Any?]] = []
     for a in res.albums { cols.append(["id": a.id.rawValue, "kind": "album", "title": a.title, "subtitle": a.artistName, "art": art(a.artwork)]) }
     for a in res.artists { cols.append(["id": a.id.rawValue, "kind": "artist", "title": a.name, "subtitle": "", "art": art(a.artwork)]) }
+    for p in res.playlists { cols.append(["id": p.id.rawValue, "kind": "playlist", "title": p.name, "subtitle": "", "art": art(p.artwork)]) }
     return ["tracks": res.songs.map { songMap($0) }, "collections": cols]
   }
 
