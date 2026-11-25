@@ -2,9 +2,9 @@ name: Flutter checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta6-work]
   pull_request:
-    branches: [main]
+    branches: [main, beta6-work]
   workflow_dispatch:
 
 permissions:
