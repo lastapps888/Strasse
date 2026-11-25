@@ -204,7 +204,7 @@ class _FloatingMiniPlayerOverlayState extends ConsumerState<FloatingMiniPlayerOv
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          width: math.min(300.0, screen.width - 16),
+          width: math.min(300.0, screen.width - 16).toDouble(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

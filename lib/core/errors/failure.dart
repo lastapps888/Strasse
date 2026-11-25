@@ -40,8 +40,8 @@ class Failure implements Exception {
     }
     if (e.type == DioExceptionType.connectionError) {
       return const Failure(
-        FailureKind.offline,
-        'Le serveur est injoignable. Vérifiez votre connexion ou réessayez plus tard.',
+        FailureKind.server,
+        'Le serveur est injoignable. Votre connexion peut fonctionner normalement ; réessayez plus tard.',
         code: 'connection_error',
       );
     }

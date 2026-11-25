@@ -237,9 +237,8 @@ class StrasseMapController {
         final layers = decoded is Map ? decoded['layers'] : null;
         if (layers is List) {
           for (final layer in layers) {
-            // Les tuiles satellite doivent rester sous toutes les couches de routes et de libellés.
-            // On les insère juste avant la première couche de lignes (routes), jamais sous les symboles.
-            if (layer is Map && layer['id'] is String && layer['type'] == 'line') {
+            // Insérer l'image sous la première couche de routes ou de symboles afin de préserver les libellés.
+            if (layer is Map && layer['id'] is String && const {'line', 'symbol'}.contains(layer['type'])) {
               belowLayerId = layer['id'] as String;
               break;
             }

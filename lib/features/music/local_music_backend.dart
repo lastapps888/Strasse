@@ -388,7 +388,12 @@ class LocalMusicBackend implements MusicBackend {
     }
     if (c.id.startsWith('playlist:')) {
       final raw = await _channel.invokeListMethod<Map<Object?, Object?>>('playlistTracks', {'id': c.id.substring(9)}) ?? const [];
-      return [for (final m in raw) if (_parse(m) case final t?) t];
+      final tracks = <MusicTrack>[];
+      for (final item in raw) {
+        final track = await _parse(item);
+        if (track != null) tracks.add(track);
+      }
+      return tracks;
     }
     return const [];
   }
