@@ -284,8 +284,68 @@ class _StorageManagementPageState extends ConsumerState<StorageManagementPage> {
             ),
           ),
           const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 20, 4, 8),
+            child: Text('Effacer les données', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: const Text('Effacer l\'historique des trajets'),
+            onTap: () async {
+              if (await confirm(context, title: 'Effacer l\'historique ?', message: 'Tous les trajets et les statistiques seront supprimés de cet appareil.', confirmLabel: 'Effacer')) {
+                await ref.read(dataActionsProvider).clearHistory();
+                if (context.mounted) showMessage(context, 'Historique effacé.');
+                await _refresh();
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.search_off_rounded),
+            title: const Text('Effacer les recherches et lieux récents'),
+            onTap: () async {
+              await ref.read(dataActionsProvider).clearSearchData();
+              if (context.mounted) showMessage(context, 'Recherches effacées.');
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.restart_alt_rounded, color: Theme.of(context).colorScheme.error),
+            title: const Text('Réinitialiser l\'identifiant anonyme'),
+            subtitle: const Text('Génère un nouvel identifiant pour les signalements'),
+            onTap: () async {
+              await ref.read(secureStoreProvider).rotateInstallId();
+              if (context.mounted) showMessage(context, 'Identifiant anonyme renouvelé.');
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_forever_rounded, color: Theme.of(context).colorScheme.error),
+            title: Text('Effacer toutes les données locales', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            subtitle: const Text('Favoris, collections, historique, voyages, recherches et cartes téléchargées'),
+            onTap: () async {
+              final ok = await confirm(
+                context,
+                title: 'Tout effacer sur cet appareil ?',
+                message: 'Favoris, collections, historique, voyages planifiés, recherches et cartes téléchargées seront supprimés définitivement. '
+                    'Si vous avez un compte, les données du serveur ne sont pas touchées.',
+                confirmLabel: 'Tout effacer',
+              );
+              if (!ok) return;
+              await ref.read(dataActionsProvider).wipeAllLocalData();
+              if (context.mounted) showMessage(context, 'Données locales effacées.');
+              await _refresh();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_backup_restore_rounded),
+            title: const Text('Réinitialiser les réglages'),
+            onTap: () async {
+              if (await confirm(context, title: 'Réinitialiser les réglages ?', message: 'Les réglages reviennent à leur valeur d’origine (adresses de serveurs comprises). Vos données ne sont pas supprimées.', confirmLabel: 'Réinitialiser')) {
+                await ref.read(settingsProvider.notifier).reset();
+                if (context.mounted) showMessage(context, 'Réglages réinitialisés.');
+              }
+            },
+          ),
           const Text(
-            'La musique importée, les favoris, collections, trajets planifiés, comptes et préférences ne sont jamais supprimés depuis cet écran.',
+            'La musique importée, les favoris, collections, trajets planifiés, comptes et préférences ne sont jamais supprimés depuis les commandes de cache ci-dessus.',
             style: TextStyle(fontSize: 12),
           ),
           if (_busy)

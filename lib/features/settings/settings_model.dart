@@ -89,6 +89,7 @@ class AppSettings {
     this.speedAlertMarginKmh = 3,
     this.appIcon = 'clair',
     this.musicSource = '',
+    this.showFloatingMusicPlayer = false,
     this.showNavLabels = true,
     // Carte
     this.mapStyle = MapStyleChoice.auto,
@@ -187,6 +188,7 @@ class AppSettings {
 
   /// Dernière source musicale utilisée.
   final String musicSource;
+  final bool showFloatingMusicPlayer;
   final bool showNavLabels;
 
   final MapStyleChoice mapStyle;
@@ -278,6 +280,7 @@ class AppSettings {
     int? speedAlertMarginKmh,
     String? appIcon,
     String? musicSource,
+    bool? showFloatingMusicPlayer,
     bool? showNavLabels,
     MapStyleChoice? mapStyle,
     int? customRoadColor,
@@ -345,6 +348,7 @@ class AppSettings {
         speedAlertMarginKmh: speedAlertMarginKmh ?? this.speedAlertMarginKmh,
         appIcon: appIcon ?? this.appIcon,
         musicSource: musicSource ?? this.musicSource,
+        showFloatingMusicPlayer: showFloatingMusicPlayer ?? this.showFloatingMusicPlayer,
         showNavLabels: showNavLabels ?? this.showNavLabels,
         mapStyle: mapStyle ?? this.mapStyle,
         customRoadColor: customRoadColor ?? this.customRoadColor,
@@ -412,6 +416,7 @@ class AppSettings {
         'speedAlertMarginKmh': speedAlertMarginKmh,
         'appIcon': appIcon,
         'musicSource': musicSource,
+        'showFloatingMusicPlayer': showFloatingMusicPlayer,
         'showNavLabels': showNavLabels,
         'mapStyle': mapStyle.name,
         'customRoadColor': customRoadColor,
@@ -541,6 +546,7 @@ class AppSettings {
       speedAlertMarginKmh: i('speedAlertMarginKmh', d.speedAlertMarginKmh).clamp(1, 30),
       appIcon: (j['appIcon'] as String?) ?? d.appIcon,
       musicSource: (j['musicSource'] as String?) ?? d.musicSource,
+      showFloatingMusicPlayer: b('showFloatingMusicPlayer', d.showFloatingMusicPlayer),
       showNavLabels: b('showNavLabels', d.showNavLabels),
       mapStyle: enumOf(MapStyleChoice.values, j['mapStyle'], d.mapStyle),
       customRoadColor: i('customRoadColor', d.customRoadColor),

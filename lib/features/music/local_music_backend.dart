@@ -47,10 +47,33 @@ class LocalMusicBackend implements MusicBackend {
   Future<String?> unavailableReason() async => (Platform.isAndroid || Platform.isIOS) ? null : 'Plateforme non prise en charge.';
 
   Future<bool> _permission() async {
-    if (Platform.isIOS) return (await Permission.mediaLibrary.request()).isGranted;
+    if (Platform.isIOS) {
+      final status = await Permission.mediaLibrary.status;
+      return status.isGranted || (await Permission.mediaLibrary.request()).isGranted;
+    }
     // Android 13+ : READ_MEDIA_AUDIO ; avant : READ_EXTERNAL_STORAGE.
+    final audioStatus = await Permission.audio.status;
+    if (audioStatus.isGranted) return true;
     if ((await Permission.audio.request()).isGranted) return true;
-    return (await Permission.storage.request()).isGranted;
+    final storageStatus = await Permission.storage.status;
+    return storageStatus.isGranted || (await Permission.storage.request()).isGranted;
+  }
+
+  /// Restaure la bibliothèque locale sans redemander une permission déjà accordée.
+  /// Les fichiers importés restent accessibles même si l'accès à la bibliothèque système est refusé.
+  Future<bool> restore() async {
+    await _ensurePickedLoaded();
+    var authorized = false;
+    if (Platform.isIOS) {
+      authorized = (await Permission.mediaLibrary.status).isGranted;
+    } else if (Platform.isAndroid) {
+      authorized = (await Permission.audio.status).isGranted || (await Permission.storage.status).isGranted;
+    }
+    if (authorized) {
+      await refresh();
+    }
+    _connected = authorized || _picked.isNotEmpty;
+    return _connected;
   }
 
   @override
@@ -70,7 +93,12 @@ class LocalMusicBackend implements MusicBackend {
   Future<void> refresh() async {
     try {
       final raw = await _channel.invokeListMethod<Map<Object?, Object?>>('listTracks') ?? const [];
-      _device = [for (final m in raw) if (_parse(m) case final t?) t];
+      final tracks = <MusicTrack>[];
+      for (final item in raw) {
+        final track = await _parse(item);
+        if (track != null) tracks.add(track);
+      }
+      _device = tracks;
     } on PlatformException catch (e) {
       throw MusicException(e.message ?? 'Lecture de la bibliothèque impossible.');
     } on MissingPluginException {
@@ -78,15 +106,17 @@ class LocalMusicBackend implements MusicBackend {
     }
   }
 
-  MusicTrack? _parse(Map<Object?, Object?> m) {
+  Future<MusicTrack?> _parse(Map<Object?, Object?> m) async {
     final id = m['id'], title = m['title'], uri = m['uri'];
     if (id == null || title is! String || uri is! String) return null;
+    final artwork = await _saveArtwork(m['artwork'], 'device-$id');
     return MusicTrack(
       id: 'loc$id',
       title: title.isEmpty ? 'Sans titre' : title,
       artist: '${m['artist'] ?? ''}',
       album: '${m['album'] ?? ''}',
       durationMs: (m['durationMs'] as num?)?.toInt() ?? 0,
+      artUrl: artwork,
       uri: uri,
     );
   }

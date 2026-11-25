@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
@@ -8,6 +9,7 @@ import 'package:strasse/app/theme/app_theme.dart';
 import 'package:strasse/core/i18n/translator.dart';
 import 'package:strasse/features/music/music_controller.dart';
 import 'package:strasse/features/music/music_models.dart';
+import 'package:strasse/data/providers/providers.dart';
 
 /// Pochette (image réseau avec repli sur une icône).
 class Artwork extends StatelessWidget {
@@ -168,3 +170,79 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     );
   }
 }
+
+/// Mini-lecteur flottant déplaçable, visible au-dessus de tous les onglets lorsque l'option est activée.
+class FloatingMiniPlayerOverlay extends ConsumerStatefulWidget {
+  const FloatingMiniPlayerOverlay({super.key});
+
+  @override
+  ConsumerState<FloatingMiniPlayerOverlay> createState() => _FloatingMiniPlayerOverlayState();
+}
+
+class _FloatingMiniPlayerOverlayState extends ConsumerState<FloatingMiniPlayerOverlay> {
+  Offset _position = const Offset(16, 120);
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(musicProvider);
+    if (!state.connected || state.snapshot.track == null) return const SizedBox.shrink();
+
+    final screen = MediaQuery.sizeOf(context);
+    final safe = MediaQuery.paddingOf(context);
+    final maxLeft = math.max(8.0, screen.width - 300 - 8);
+    final minTop = safe.top + 8;
+    final maxTop = math.max(minTop, screen.height - 190 - safe.bottom - 76);
+    final left = _position.dx.clamp(8.0, maxLeft).toDouble();
+    final top = _position.dy.clamp(minTop, maxTop).toDouble();
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: Material(
+        color: context.sc.panel,
+        elevation: 12,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: math.min(300.0, screen.width - 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (details) {
+                  setState(() {
+                    _position = Offset(
+                      (_position.dx + details.delta.dx).clamp(8.0, maxLeft).toDouble(),
+                      (_position.dy + details.delta.dy).clamp(minTop, maxTop).toDouble(),
+                    );
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 5, 4, 0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.drag_indicator_rounded, size: 20, color: context.cs.onSurfaceVariant),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text('Musique en cours', style: context.tt.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      ),
+                      IconButton(
+                        tooltip: 'Masquer le lecteur flottant',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => ref.read(settingsProvider.notifier).update((s) => s.copyWith(showFloatingMusicPlayer: false)),
+                        icon: const Icon(Icons.close_rounded, size: 19),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const MiniPlayer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
