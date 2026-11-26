@@ -11,9 +11,10 @@ import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/notifications/notifications_service.dart';
 import 'package:uuid/uuid.dart';
 
-/// Plafond de tuiles par région. Au-delà, le moteur cartographique natif consomme trop de mémoire et l'application
-/// risque de se fermer : le téléchargement est refusé plutôt que tenté. Valeur prudente, non mesurée sur appareil.
-const int kMaxRegionTiles = 90000;
+/// Limites par téléchargement public OpenFreeMap (3 000 tuiles, 50 Mo).
+/// Les zones plus grandes doivent être découpées en téléchargements distincts lancés par l'utilisateur.
+const int kMaxRegionTiles = 3000;
+const int kMaxRegionBytes = 50 * 1024 * 1024;
 
 /// Côté maximal d'une région (km) : 1 000 × 1 000 km au plus, à condition de rester sous le plafond de tuiles.
 const double kMaxRegionSideKm = 1000;
@@ -42,7 +43,9 @@ int estimateRegionBytes(GeoBounds b, int minZoom, int maxZoom) {
 int? maxZoomWithinLimit(GeoBounds b, int minZoom, {int ceiling = 16}) {
   int? best;
   for (var z = minZoom; z <= ceiling; z++) {
-    if (estimateTileCount(b, minZoom, z) > kMaxRegionTiles) break;
+    final count = estimateTileCount(b, minZoom, z);
+    final bytes = estimateRegionBytes(b, minZoom, z);
+    if (count > kMaxRegionTiles || bytes > kMaxRegionBytes) break;
     best = z;
   }
   return best;
@@ -55,10 +58,19 @@ String? regionLimitMessage(GeoBounds b, int minZoom, int maxZoom) {
     return 'La zone fait ${w.round()} × ${h.round()} km : le maximum est de ${kMaxRegionSideKm.round()} × ${kMaxRegionSideKm.round()} km. Réduisez le rectangle pour éviter de faire planter l\'application.';
   }
   final tiles = estimateTileCount(b, minZoom, maxZoom);
-  if (tiles > kMaxRegionTiles) {
+  final bytes = estimateRegionBytes(b, minZoom, maxZoom);
+  final exceedsTiles = tiles > kMaxRegionTiles;
+  final exceedsBytes = bytes > kMaxRegionBytes;
+  if (exceedsTiles || exceedsBytes) {
     final fit = maxZoomWithinLimit(b, minZoom);
-    final hint = fit == null ? 'Réduisez la taille du rectangle.' : 'Réduisez le rectangle ou baissez le niveau de détail (jusqu\'au zoom $fit, cette zone passe).';
-    return 'Cette zone (${w.round()} × ${h.round()} km, zoom $maxZoom) représente $tiles tuiles, le maximum est $kMaxRegionTiles. $hint Un téléchargement plus gros ferait planter l\'application.';
+    final constraints = [
+      if (exceedsTiles) '$tiles tuiles (maximum $kMaxRegionTiles)',
+      if (exceedsBytes) '${formatBytes(bytes)} estimés (maximum ${formatBytes(kMaxRegionBytes)})',
+    ].join(' et ');
+    final hint = fit == null
+        ? 'Réduisez la taille du rectangle.'
+        : 'Réduisez le rectangle ou baissez le niveau de détail jusqu\'au zoom $fit.';
+    return 'Cette zone (${w.round()} × ${h.round()} km, zoom $maxZoom) dépasse la limite par téléchargement : $constraints. $hint';
   }
   return null;
 }
@@ -98,7 +110,10 @@ class OfflineManager extends StateNotifier<List<OfflineRegionInfo>> {
     }
     state = fixed;
     try {
+      // Limite globale de stockage du moteur ; chaque région est plafonnée séparément ci-dessus.
       await ml.setOfflineTileCountLimit(1000000);
+      // Respecte la limite de quatre requêtes parallèles du fournisseur public par téléchargement.
+      await ml.setOfflineMaxConcurrentRequests(maxRequests: 4, maxRequestsPerHost: 4);
     } catch (_) {}
   }
 
@@ -229,9 +244,18 @@ class OfflineManager extends StateNotifier<List<OfflineRegionInfo>> {
           final type = status.runtimeType.toString();
           if (type == 'InProgress') {
             final p = (status.progress as num).toDouble();
-            // Le moteur envoie des milliers d'événements : on ne met à jour l'interface qu'à chaque point de pourcentage.
+            final completedBytes = (status.completedResourceSize as num?)?.toInt();
+            final completedResources = (status.completedResourceCount as num?)?.toInt();
+            final requiredResources = (status.requiredResourceCount as num?)?.toInt();
+            // Le moteur donne la taille réellement téléchargée, en plus du pourcentage.
             if ((p - current.progress).abs() >= 1 || p >= 100) {
-              current = current.copyWith(progress: p, updatedAt: DateTime.now());
+              current = current.copyWith(
+                progress: p,
+                sizeBytes: completedBytes ?? current.sizeBytes,
+                completedResources: completedResources ?? current.completedResources,
+                requiredResources: requiredResources ?? current.requiredResources,
+                updatedAt: DateTime.now(),
+              );
               _replace(current);
             }
           } else if (type == 'Success') {

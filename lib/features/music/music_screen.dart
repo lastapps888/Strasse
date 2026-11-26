@@ -216,11 +216,12 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
             ),
           ),
           if (st.source == null)
-            const Padding(padding: EdgeInsets.all(16), child: InfoBanner(icon: Icons.library_music_outlined, message: 'Choisissez une source de musique. Spotify et Apple Music se commandent depuis Strasse ; Deezer (extraits) et la musique de l\'appareil sont lues par Strasse.')),
+            const Padding(padding: EdgeInsets.all(16), child: InfoBanner(icon: Icons.library_music_outlined, message: 'Choisissez une source de musique. Spotify et Apple Music se commandent depuis Strasse ; Deezer propose des extraits ; YouTube Music ouvre la lecture dans son application ; la musique locale est lue par Strasse.')),
           if (st.unavailable != null) Padding(padding: const EdgeInsets.all(16), child: InfoBanner(icon: Icons.block_rounded, tone: BannerTone.warning, message: st.unavailable!)),
           if (st.error != null) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: InfoBanner(icon: Icons.error_outline_rounded, tone: BannerTone.error, message: st.error!, action: st.needsLogin ? 'Se connecter' : null, onAction: st.needsLogin ? _ctrl.connect : null)),
           if (st.source != null && st.unavailable == null && !st.connected && !st.catalogAvailable) _connectCard(context, st),
-          if (st.connected) _nowPlaying(context, st, caps!),
+          if (st.connected && st.source == MusicSource.youtubeMusic) _youtubeAccountCard(context)
+          else if (st.connected) _nowPlaying(context, st, caps!),
           if (st.connected || st.catalogAvailable) ...[
             if (caps!.search)
               Padding(
@@ -276,6 +277,7 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
       MusicSource.spotify => ('Connectez votre compte Spotify. Strasse commande l\'application Spotify installée sur cet appareil (compte Premium requis) : l\'audio n\'est pas lu par Strasse.', 'Se connecter à Spotify'),
       MusicSource.appleMusic => ('Autorisez l\'accès à Apple Music. Un abonnement actif est nécessaire pour la lecture ; iOS 15 ou plus récent.', 'Autoriser Apple Music'),
       MusicSource.deezer => ('Deezer propose ici la recherche et des extraits de 30 secondes, sans compte.', 'Utiliser Deezer'),
+      MusicSource.youtubeMusic => ('Connectez votre compte Google pour rechercher des vidéos musicales et consulter vos playlists YouTube. La lecture s’ouvre dans l’application YouTube Music.', 'Se connecter à Google'),
       MusicSource.local => ('Lisez les musiques de votre appareil. Rien n\'est envoyé sur Internet.', 'Autoriser l\'accès à la musique'),
     };
     return Padding(
@@ -306,6 +308,32 @@ class _MusicScreenState extends ConsumerState<MusicScreen> {
       ),
     );
   }
+
+  Widget _youtubeAccountCard(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.smart_display_rounded, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('YouTube Music connecté', style: context.tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      const Text('Vos playlists et recherches sont consultables ici. Touchez un titre ou une playlist pour ouvrir la lecture dans YouTube Music. Les commandes de lecture restent dans cette application.'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 
   Widget _nowPlaying(BuildContext context, MusicState st, MusicCapabilities caps) {
     final snap = st.snapshot;

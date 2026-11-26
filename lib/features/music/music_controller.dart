@@ -9,9 +9,10 @@ import 'package:strasse/features/music/local_music_backend.dart';
 import 'package:strasse/features/music/music_backend.dart';
 import 'package:strasse/features/music/music_models.dart';
 import 'package:strasse/features/music/spotify_backend.dart';
+import 'package:strasse/features/music/youtube_music_backend.dart';
 import 'package:strasse/features/services/provider_models.dart';
 
-/// Les quatre sources, créées à la demande. Le lecteur interne (just_audio) n'est créé que si Deezer ou la musique locale sont utilisés.
+/// Les sources musicales, créées à la demande. Le lecteur interne (just_audio) n'est créé que si Deezer ou la musique locale sont utilisés.
 class MusicBackends {
   MusicBackends(this._create);
   final MusicBackend Function(MusicSource source, AudioEngine Function() engine) _create;
@@ -41,6 +42,8 @@ final musicBackendsProvider = Provider<MusicBackends>((ref) {
         return AppleMusicBackend();
       case MusicSource.deezer:
         return DeezerBackend(baseUrl: r.urlOf(r.selected(ServiceCategory.deezer)), engine: engine(), userAgent: r.config.userAgent);
+      case MusicSource.youtubeMusic:
+        return YouTubeMusicBackend(iosClientId: r.config.youtubeIosClientId, serverClientId: r.config.youtubeServerClientId);
       case MusicSource.local:
         return LocalMusicBackend(engine: engine());
     }
@@ -162,6 +165,7 @@ class MusicController extends StateNotifier<MusicState> {
     // Musique locale : restaure les fichiers importés et relit les permissions déjà accordées,
     // sans redemander l'accès à chaque ouverture de Strasse.
     if (b is LocalMusicBackend && await b.restore()) state = state.copyWith(connected: true);
+    if (b is YouTubeMusicBackend && await b.restore()) state = state.copyWith(connected: true);
     if (connect && !state.connected && s != MusicSource.spotify && s != MusicSource.appleMusic && s != MusicSource.deezer) await this.connect();
     if (state.connected) _startTimer();
   }

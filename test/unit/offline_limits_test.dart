@@ -51,4 +51,15 @@ void main() {
     final b = _box(center, 50, 50);
     expect(estimateRegionBytes(b, 6, 14), greaterThan(estimateRegionBytes(b, 6, 12)));
   });
+
+  test('un téléchargement respecte les plafonds publics de 3 000 tuiles et 50 Mo', () {
+    final b = _box(center, 200, 200);
+    final fit = maxZoomWithinLimit(b, 6, ceiling: 14);
+    expect(fit, isNotNull);
+    expect(estimateTileCount(b, 6, fit!), lessThanOrEqualTo(kMaxRegionTiles));
+    expect(estimateRegionBytes(b, 6, fit), lessThanOrEqualTo(kMaxRegionBytes));
+    expect(regionLimitMessage(b, 6, fit), isNull);
+    expect(regionLimitMessage(b, 6, 14), isNotNull);
+  });
+
 }

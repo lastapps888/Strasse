@@ -108,6 +108,8 @@ class ProviderResolver {
         return config.openTripMapKey.trim();
       case 'spotify.clientId':
         return config.spotifyClientId.trim();
+      case 'google-places.apiKey':
+        return config.googlePlacesApiKey.trim();
     }
     return '';
   }

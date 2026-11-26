@@ -7,6 +7,7 @@ Chaque modification qui ne trouve pas son motif affiche un AVERTISSEMENT avec la
 """
 import glob
 import os
+import plistlib
 import re
 import shutil
 import subprocess
@@ -256,6 +257,39 @@ def patch_info_plist():
         "<string>Strasse accède à votre bibliothèque Apple Music uniquement pour lire votre musique pendant le trajet. Rien n'est envoyé ailleurs.</string>",
     )
     s = plist_set(s, "LSApplicationQueriesSchemes", "<array>\n\t\t<string>spotify</string>\n\t\t<string>music</string>\n\t\t<string>deezer</string>\n\t</array>")
+    # Google Sign-In : identifiants OAuth iOS/Web et schéma de retour générés par Google Cloud.
+    # Les identifiants sont publics, mais ils sont propres au projet Google de l'éditeur.
+    youtube_ios_client_id = os.environ.get("STRASSE_YOUTUBE_IOS_CLIENT_ID", "").strip()
+    youtube_server_client_id = os.environ.get("STRASSE_YOUTUBE_SERVER_CLIENT_ID", "").strip()
+    youtube_reversed_client_id = os.environ.get("STRASSE_YOUTUBE_REVERSED_CLIENT_ID", "").strip()
+    if youtube_ios_client_id:
+        s = plist_set(s, "GIDClientID", f"<string>{youtube_ios_client_id}</string>")
+    if youtube_server_client_id:
+        s = plist_set(s, "GIDServerClientID", f"<string>{youtube_server_client_id}</string>")
+    # Google Sign-In et Spotify utilisent des schémas de retour distincts.
+    # Le schéma « strasse » doit exister même si Google OAuth n'est pas configuré.
+    plist_data = plistlib.loads(s.encode("utf-8"))
+    url_types = plist_data.get("CFBundleURLTypes", [])
+    if not isinstance(url_types, list):
+        url_types = []
+    required_schemes = ["strasse"]
+    if youtube_reversed_client_id:
+        required_schemes.append(youtube_reversed_client_id)
+    existing_schemes = {
+        scheme
+        for entry in url_types
+        if isinstance(entry, dict)
+        for scheme in entry.get("CFBundleURLSchemes", [])
+        if isinstance(scheme, str)
+    }
+    missing_schemes = [scheme for scheme in required_schemes if scheme not in existing_schemes]
+    if missing_schemes:
+        url_types.append({
+            "CFBundleTypeRole": "Editor",
+            "CFBundleURLSchemes": missing_schemes,
+        })
+    plist_data["CFBundleURLTypes"] = url_types
+    s = plistlib.dumps(plist_data, fmt=plistlib.FMT_XML, sort_keys=False).decode("utf-8")
     # Cycle de vie UIScene (Flutter 3.38+) : indispensable à l'enregistrement des canaux natifs (voir AppDelegate.swift).
     if "UIApplicationSceneManifest" not in s and "_UIApplicationSceneManifest" not in s:
         scene = (
@@ -269,7 +303,7 @@ def patch_info_plist():
         )
         s = plist_set(s, "UIApplicationSceneManifest", scene)
     write(path, s)
-    print("Info.plist configuré (nom, permission de localisation en français, arrière-plan, chiffrement).")
+    print("Info.plist configuré (permissions, Google Sign-In si configuré, arrière-plan et icônes).")
 
 
 def patch_podfile():

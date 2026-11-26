@@ -13,6 +13,7 @@ enum ServiceCategory {
   hotels('hotels', 'Hôtels', 'Découverte des hébergements.'),
   restaurants('restaurants', 'Restaurants', 'Découverte des restaurants.'),
   booking('booking', 'Réservations', 'Accès à la réservation dans l\'application.'),
+  googlePlacesReviews('googlePlacesReviews', 'Notes et avis des lieux', 'Notes et avis publics Google Maps pour les lieux qui correspondent.'),
   traffic('traffic', 'Trafic', 'Incidents et perturbations routières.'),
   reports('reports', 'Signalements', 'Signalements communautaires partagés.'),
   feedback('feedback', 'Retours (feedback)', 'Envoi de vos commentaires à l\'équipe du projet.'),
@@ -20,6 +21,7 @@ enum ServiceCategory {
   spotify('spotify', 'Spotify', 'Contrôle de la lecture Spotify.'),
   appleMusic('appleMusic', 'Apple Music', 'Lecture et recherche Apple Music (iOS).'),
   deezer('deezer', 'Deezer', 'Recherche et extraits Deezer.'),
+  youtubeMusic('youtubeMusic', 'YouTube Music', 'Connexion Google et playlists YouTube Music.'),
   localMusic('localMusic', 'Musique locale', 'Fichiers audio de l\'appareil.');
 
   const ServiceCategory(this.id, this.label, this.description);

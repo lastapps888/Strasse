@@ -8,8 +8,7 @@ import 'package:strasse/features/places/mapillary_viewer_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Photo (Wikimedia Commons, avec auteur et licence) et résumé (Wikipédia) d'un lieu nommé, si un article correspond
-/// vraiment à ce lieu. Les données ouvertes ne fournissent pas de système d'avis d'utilisateurs ; Strasse ne présente
-/// donc pas de fausses notes ni de faux commentaires. La vue Mapillary est ouverte séparément à la demande.
+/// vraiment à ce lieu. Les avis Google Maps sont affichés uniquement lorsque le fournisseur est configuré et qu'un lieu correspondant est trouvé. La vue Mapillary est ouverte séparément à la demande.
 class PlaceInfoBlock extends ConsumerWidget {
   const PlaceInfoBlock({super.key, required this.place, this.showOwnPhoto = true});
   final Place place;
@@ -22,6 +21,7 @@ class PlaceInfoBlock extends ConsumerWidget {
     final cs = context.cs;
     final named = place.name.trim().length >= 3;
     final info = named ? ref.watch(placeInfoProvider((place.name, place.point.lat, place.point.lon))).valueOrNull : null;
+    final reviews = named ? ref.watch(placeReviewsProvider((place.name, place.point.lat, place.point.lon))).valueOrNull : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -52,6 +52,53 @@ class PlaceInfoBlock extends ConsumerWidget {
               style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32), alignment: Alignment.centerLeft),
               onPressed: () => _open(info.articleUrl!),
               child: const Text('Lire la suite sur Wikipédia (CC BY-SA)'),
+            ),
+        ],
+        if (reviews != null) ...[
+          const SizedBox(height: 12),
+          const Divider(),
+          Text('Avis Google Maps', style: context.tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          if (reviews.rating != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.star_rounded, size: 20, color: context.sc.warning),
+                  const SizedBox(width: 5),
+                  Text(reviews.rating!.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(width: 6),
+                  Text('· ${reviews.userRatingCount} évaluations', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                ],
+              ),
+            ),
+          for (final review in reviews.reviews)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.star_rounded, size: 16, color: context.sc.warning),
+                      const SizedBox(width: 4),
+                      Text(review.rating.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(review.author, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+                      if (review.relativeTime != null) Text(review.relativeTime!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(review.text, style: const TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          Text('Avis et évaluations fournis par Google Maps.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          if (reviews.googleMapsUri != null)
+            TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32), alignment: Alignment.centerLeft),
+              onPressed: () => _open(reviews.googleMapsUri!),
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              label: const Text('Voir sur Google Maps'),
             ),
         ],
         if (named) ...[
