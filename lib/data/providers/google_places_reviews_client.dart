@@ -118,7 +118,7 @@ class GooglePlacesReviewsClient {
         '/places/${Uri.encodeComponent(best['id'] as String)}',
         options: Options(headers: {
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,googleMapsUri',
+          'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,googleMapsUri,reviews.rating,reviews.text,reviews.originalText,reviews.authorAttribution,reviews.relativePublishTimeDescription,reviews.googleMapsUri,reviews.flagContentUri,reviews.visitDate',
         }),
       );
       final data = details.data;
@@ -132,14 +132,27 @@ class GooglePlacesReviewsClient {
           final text = raw['text'];
           final authorName = author is Map ? author['displayName'] : null;
           final reviewText = text is Map ? text['text'] : null;
+          final originalText = raw['originalText'];
+          final originalReviewText = originalText is Map ? originalText['text'] : null;
           final rating = (raw['rating'] as num?)?.toDouble();
           if (rating == null || reviewText is! String || reviewText.trim().isEmpty) continue;
+          final visit = raw['visitDate'];
+          final visitDate = visit is Map && visit['year'] is num && visit['month'] is num
+              ? '${(visit['month'] as num).toInt().toString().padLeft(2, '0')}/${(visit['year'] as num).toInt()}'
+              : null;
           reviews.add(GooglePlaceReview(
             rating: rating,
             text: reviewText.trim(),
             author: authorName is String && authorName.isNotEmpty ? authorName : 'Utilisateur Google',
             relativeTime: raw['relativePublishTimeDescription'] as String?,
             authorUri: author is Map ? author['uri'] as String? : null,
+            authorPhotoUri: author is Map ? author['photoUri'] as String? : null,
+            googleMapsUri: raw['googleMapsUri'] as String?,
+            flagContentUri: raw['flagContentUri'] as String?,
+            visitDate: visitDate,
+            translated: originalReviewText is String &&
+                originalReviewText.trim().isNotEmpty &&
+                originalReviewText.trim() != reviewText.trim(),
           ));
         }
       }
