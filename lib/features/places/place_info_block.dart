@@ -58,6 +58,13 @@ class PlaceInfoBlock extends ConsumerWidget {
           const SizedBox(height: 12),
           const Divider(),
           Text('Avis Google Maps', style: context.tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(
+              'Jusqu’à cinq avis, classés par pertinence selon Google Maps.',
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ),
           if (reviews.rating != null)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 8),
