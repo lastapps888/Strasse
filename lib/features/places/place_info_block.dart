@@ -79,16 +79,76 @@ class PlaceInfoBlock extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
+                      if (review.authorPhotoUri != null)
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundImage: NetworkImage(review.authorPhotoUri!),
+                        )
+                      else
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: cs.surfaceContainerHighest,
+                          child: Icon(Icons.person_outline_rounded, size: 17, color: cs.onSurfaceVariant),
+                        ),
+                      const SizedBox(width: 7),
                       Icon(Icons.star_rounded, size: 16, color: context.sc.warning),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(review.rating.toStringAsFixed(0), style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(review.author, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
-                      if (review.relativeTime != null) Text(review.relativeTime!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: InkWell(
+                          onTap: review.authorUri == null ? null : () => _open(review.authorUri!),
+                          child: Text(
+                            review.author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: review.authorUri == null ? TextDecoration.none : TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
+                  if (review.relativeTime != null || review.visitDate != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(
+                        [
+                          if (review.relativeTime != null) review.relativeTime!,
+                          if (review.visitDate != null) 'Visite : ${review.visitDate}',
+                        ].join(' · '),
+                        style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                      ),
+                    ),
                   const SizedBox(height: 4),
                   Text(review.text, style: const TextStyle(fontSize: 13)),
+                  if (review.translated)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text('Avis traduit automatiquement.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                    ),
+                  if (review.googleMapsUri != null || review.flagContentUri != null)
+                    Wrap(
+                      spacing: 4,
+                      children: [
+                        if (review.googleMapsUri != null)
+                          TextButton.icon(
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: const Size(0, 30)),
+                            onPressed: () => _open(review.googleMapsUri!),
+                            icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                            label: const Text('Voir cet avis'),
+                          ),
+                        if (review.flagContentUri != null)
+                          TextButton.icon(
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: const Size(0, 30)),
+                            onPressed: () => _open(review.flagContentUri!),
+                            icon: const Icon(Icons.flag_outlined, size: 14),
+                            label: const Text('Signaler'),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),
