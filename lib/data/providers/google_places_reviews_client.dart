@@ -10,6 +10,11 @@ class GooglePlaceReview {
     required this.author,
     this.relativeTime,
     this.authorUri,
+    this.authorPhotoUri,
+    this.googleMapsUri,
+    this.flagContentUri,
+    this.visitDate,
+    this.translated = false,
   });
 
   final double rating;
@@ -17,6 +22,11 @@ class GooglePlaceReview {
   final String author;
   final String? relativeTime;
   final String? authorUri;
+  final String? authorPhotoUri;
+  final String? googleMapsUri;
+  final String? flagContentUri;
+  final String? visitDate;
+  final bool translated;
 }
 
 class GooglePlaceReviews {
