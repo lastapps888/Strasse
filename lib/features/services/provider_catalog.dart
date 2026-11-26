@@ -548,7 +548,7 @@ class ProviderCatalog {
       id: 'spotify-web',
       category: ServiceCategory.spotify,
       name: 'Spotify — API Web (PKCE)',
-      description: 'Connexion à votre compte Spotify par OAuth PKCE et contrôle de l’application Spotify installée. Le Client ID public est configurable dans Réglages > Services > Spotify > Identifiants. Aucun secret Spotify n'est nécessaire dans l'application.',
+      description: "Connexion à votre compte Spotify par OAuth PKCE et contrôle de l’application Spotify installée. Le Client ID public est configurable dans Réglages > Services > Spotify > Identifiants. Aucun secret Spotify n’est nécessaire dans l’application.",
       baseUrl: 'https://api.spotify.com/v1',
       adapter: 'spotify',
       kind: ProviderKind.credentials,
