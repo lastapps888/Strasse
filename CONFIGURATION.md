@@ -13,7 +13,7 @@ No private keys should be included within the application (as a mobile app is co
 | `STRASSE_GEOCODER_URL` | Nominatim-compatible server | **yes** (for search) |
 | `STRASSE_OTP_URL` | OpenTripPlanner (powered by GTFS data) | no (if omitted: no public transit) |
 | `STRASSE_OVERPASS_URL` | Overpass API endpoint (`…/api/interpreter`) | no (for downloading offline routes) |
-| `STRASSE_SPOTIFY_CLIENT_ID` | Spotify PKCE Client ID, supplied by the app publisher at build time (never requested from the user) | no (Spotify remains disabled when absent) |
+| `STRASSE_SPOTIFY_CLIENT_ID` | Public Spotify PKCE Client ID (build-time value; can also be entered in Settings) | no (Spotify remains unavailable until an ID is supplied) |
 | `STRASSE_API_URL` | Strasse backend (accounts, synchronization, reports, traffic) | no |
 
 What you need to host or select:
