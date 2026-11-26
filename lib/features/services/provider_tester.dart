@@ -68,20 +68,30 @@ class ProviderTester {
         if (_ok(r) && (text.contains('slots') || text.contains('Connected as') || text.contains('Rate limit'))) return (true, 'Overpass opérationnel.');
         return (false, 'Réponse inattendue (${r.statusCode}) : pas de /status Overpass valide.');
       case 'overpass-poi':
-        final roadData = resolver.selected(ServiceCategory.roadData);
-        final overpassUrl = ProviderResolver.normalize(resolver.urlOf(roadData));
-        if (overpassUrl.isEmpty) return (false, 'Aucun serveur Overpass configuré dans « Données routières ».');
+        final endpoints = [
+          for (final candidate in resolver.candidates(ServiceCategory.roadData))
+            ProviderResolver.normalize(resolver.urlOf(candidate)),
+        ].where((url) => url.isNotEmpty).toSet().toList();
+        if (endpoints.isEmpty) return (false, 'Aucun serveur Overpass configuré dans « Données routières ».');
         const query = '[out:json][timeout:12];nwr(around:100,48.8566,2.3522);out count;';
-        final poiResponse = await _dio.post<Object>(
-          overpassUrl,
-          data: 'data=${Uri.encodeQueryComponent(query)}',
-          options: Options(contentType: Headers.formUrlEncodedContentType),
-        );
-        final payload = _json(poiResponse.data);
-        if (_ok(poiResponse) && payload is Map && payload['elements'] is List) {
-          return (true, 'Overpass opérationnel : le service de lieux reçoit une réponse valide.');
+        final failures = <String>[];
+        for (final endpoint in endpoints) {
+          try {
+            final poiResponse = await _dio.post<Object>(
+              endpoint,
+              data: 'data=${Uri.encodeQueryComponent(query)}',
+              options: Options(contentType: Headers.formUrlEncodedContentType),
+            );
+            final payload = _json(poiResponse.data);
+            if (_ok(poiResponse) && payload is Map && payload['elements'] is List) {
+              return (true, 'Overpass opérationnel : un serveur principal ou de secours répond correctement.');
+            }
+            failures.add('${Uri.parse(endpoint).host} : HTTP ${poiResponse.statusCode}');
+          } on DioException catch (error) {
+            failures.add('${Uri.parse(endpoint).host} : ${Failure.fromDio(error).message}');
+          }
         }
-        return (false, 'Réponse Overpass invalide (${poiResponse.statusCode}).');
+        return (false, 'Aucun serveur Overpass ne répond correctement. ${failures.join(' ; ')}');
       case 'formsubmit':
         // Pas d'envoi de test (il enverrait un vrai message) : on vérifie seulement que le service répond.
         final r = await _dio.get<Object>(base);
