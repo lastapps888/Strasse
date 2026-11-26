@@ -6,6 +6,10 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
+import android.media.MediaMetadataRetriever
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import android.net.Uri
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -43,6 +47,51 @@ class MainActivity : AudioServiceActivity() {
                         main.post { result.error("permission", "Accès à la musique non autorisé.", null) }
                     } catch (e: Exception) {
                         main.post { result.error("query", e.message ?: "Lecture de la bibliothèque impossible.", null) }
+                    }
+                }
+                "metadataForFile" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrBlank()) {
+                        result.error("invalid", "Chemin du fichier manquant.", null)
+                    } else thread {
+                        var retriever: MediaMetadataRetriever? = null
+                        try {
+                            retriever = MediaMetadataRetriever()
+                            retriever.setDataSource(path)
+                            val artworkBytes = retriever.embeddedPicture
+                            val artwork = if (artworkBytes == null) null else {
+                                val decoded = BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size)
+                                if (decoded == null) null else {
+                                    val longest = maxOf(decoded.width, decoded.height)
+                                    val scaled = if (longest > 512) {
+                                        val ratio = 512.0 / longest.toDouble()
+                                        Bitmap.createScaledBitmap(
+                                            decoded,
+                                            maxOf(1, (decoded.width * ratio).toInt()),
+                                            maxOf(1, (decoded.height * ratio).toInt()),
+                                            true,
+                                        )
+                                    } else decoded
+                                    val output = ByteArrayOutputStream()
+                                    scaled.compress(Bitmap.CompressFormat.JPEG, 84, output)
+                                    if (scaled !== decoded) scaled.recycle()
+                                    if (!decoded.isRecycled) decoded.recycle()
+                                    output.toByteArray()
+                                }
+                            }
+                            val metadata = mapOf(
+                                "title" to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
+                                "artist" to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
+                                "album" to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
+                                "durationMs" to (retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L),
+                                "artwork" to artwork,
+                            )
+                            main.post { result.success(metadata) }
+                        } catch (e: Exception) {
+                            main.post { result.success(emptyMap<String, Any>()) }
+                        } finally {
+                            try { retriever?.release() } catch (_: Exception) {}
+                        }
                     }
                 }
                 "listPlaylists" -> result.success(emptyList<Any>())

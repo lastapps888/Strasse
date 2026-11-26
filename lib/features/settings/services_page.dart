@@ -38,10 +38,10 @@ const List<(String, IconData, List<ServiceCategory>)> _sections = [
   ('Carte', Icons.map_outlined, [ServiceCategory.tiles, ServiceCategory.glyphs]),
   ('Recherche', Icons.search_rounded, [ServiceCategory.geocoding, ServiceCategory.reverse]),
   ('Itinéraires', Icons.alt_route_rounded, [ServiceCategory.routing, ServiceCategory.transit, ServiceCategory.roadData]),
-  ('Lieux et réservations', Icons.hotel_outlined, [ServiceCategory.tourism, ServiceCategory.hotels, ServiceCategory.restaurants, ServiceCategory.booking]),
+  ('Lieux et réservations', Icons.hotel_outlined, [ServiceCategory.tourism, ServiceCategory.hotels, ServiceCategory.restaurants, ServiceCategory.booking, ServiceCategory.googlePlacesReviews]),
   ('Trafic, compte et synchronisation', Icons.cloud_sync_outlined, [ServiceCategory.traffic, ServiceCategory.reports, ServiceCategory.account]),
   ('Retours', Icons.feedback_outlined, [ServiceCategory.feedback]),
-  ('Musique', Icons.library_music_outlined, [ServiceCategory.spotify, ServiceCategory.appleMusic, ServiceCategory.deezer, ServiceCategory.localMusic]),
+  ('Musique', Icons.library_music_outlined, [ServiceCategory.spotify, ServiceCategory.appleMusic, ServiceCategory.deezer, ServiceCategory.youtubeMusic, ServiceCategory.localMusic]),
 ];
 
 class _ServicesPageState extends ConsumerState<ServicesPage> {
@@ -233,6 +233,14 @@ class _ServicesPageState extends ConsumerState<ServicesPage> {
   String? _missingConfig(ProviderResolver r, ServiceProvider p) {
     switch (p.kind) {
       case ProviderKind.url:
+        // Les services de lieux utilisent le serveur Overpass commun configuré dans « Données routières ».
+        // Ils ne nécessitent pas d'adresse dédiée dans chaque catégorie.
+        if (p.adapter == 'overpass-poi') {
+          final shared = r.selected(ServiceCategory.roadData);
+          return r.urlOf(shared).isEmpty
+              ? 'Configurez un serveur Overpass dans « Données routières ».'
+              : null;
+        }
         return r.urlOf(p).isEmpty ? 'Aucune adresse renseignée : appuyez sur « + » pour ajouter votre serveur.' : null;
       case ProviderKind.credentials:
         for (final f in p.fields) {

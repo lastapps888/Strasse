@@ -11,14 +11,14 @@ import 'package:strasse/domain/domain.dart';
 /// sur les politiques RLS décrites dans `supabase/`. Aucune clé privilégiée ne doit jamais être saisie ici.
 class SupabaseBackend implements AccountBackend {
   SupabaseBackend({required String url, required String anonKey, required this.secure, Dio? dio})
-      : anonKey = anonKey.trim().isNotEmpty ? anonKey.trim() : 'sb_publishable_3TXETm0ckp57A6TQfyJ-eg_dD_EkyOd',
-        baseUrl = (url.trim().isNotEmpty ? url.trim() : 'https://msgaoprkocgbsirbjaab.supabase.co').replaceAll(RegExp(r'/+$'), '') {
+      : anonKey = anonKey.trim().isNotEmpty ? anonKey.trim() : AppConfig.defaultSupabasePublishableKey,
+        baseUrl = (url.trim().isNotEmpty ? url.trim() : AppConfig.defaultSupabaseUrl).replaceAll(RegExp(r'/+$'), '') {
     final options = BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 20),
-      headers: {'Accept': 'application/json', 'apikey': anonKey},
+      headers: {'Accept': 'application/json', 'apikey': this.anonKey},
       validateStatus: (s) => s != null && s >= 200 && s < 300,
     );
     _dio = dio ?? Dio(options);
@@ -26,7 +26,12 @@ class SupabaseBackend implements AccountBackend {
       onRequest: (o, handler) {
         final isAuthCall = o.path.startsWith('/auth/v1/token') || o.path.startsWith('/auth/v1/signup') || o.path.startsWith('/auth/v1/recover');
         final token = secure.accessToken;
-        o.headers['Authorization'] = 'Bearer ${(token != null && !isAuthCall) ? token : anonKey}';
+        if (!isAuthCall && token != null && token.isNotEmpty) {
+          o.headers['Authorization'] = 'Bearer $token';
+        } else {
+          // Les clés sb_publishable_ ne sont pas des JWT : elles restent exclusivement dans l'en-tête apikey.
+          o.headers.remove('Authorization');
+        }
         handler.next(o);
       },
       onError: (e, handler) async {
@@ -82,6 +87,17 @@ class SupabaseBackend implements AccountBackend {
       final code = (data['error_code'] ?? data['code'] ?? '').toString();
       final raw = (data['msg'] ?? data['message'] ?? data['error_description'] ?? data['error'] ?? '').toString();
       final status = e.response?.statusCode;
+      if (code == 'PGRST202' ||
+          code == 'PGRST205' ||
+          raw.toLowerCase().contains('schema cache') ||
+          raw.toLowerCase().contains('could not find the function') ||
+          raw.toLowerCase().contains('could not find the table')) {
+        return const Failure(
+          FailureKind.server,
+          'Le schéma Strasse est absent de l’API Supabase. Exécutez supabase/migrations/0001_strasse.sql dans SQL Editor, puis rechargez le schéma PostgREST du projet.',
+          code: 'supabase_schema_missing',
+        );
+      }
       if (code == 'invalid_credentials' || raw.toLowerCase().contains('invalid login')) {
         return const Failure(FailureKind.client, 'E-mail ou mot de passe incorrect.', code: 'invalid_credentials');
       }

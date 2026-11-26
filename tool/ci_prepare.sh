@@ -5,10 +5,9 @@
 #   bash tool/ci_prepare.sh ios         # iOS / IPA
 #   bash tool/ci_prepare.sh all
 #
-# 1. complète android/ et/ou ios/ avec `flutter create` UNIQUEMENT pour les fichiers manquants (gradlew, Runner.xcodeproj…) ;
-#    les fichiers déjà versionnés ne sont jamais écrasés ;
-# 2. applique la configuration Strasse (tool/patch_platforms.py : Gradle, icônes, manifestes, Info.plist, icônes alternatives iOS) ;
-# 3. flutter pub get.
+# 1. complète android/ et ios/ avec `flutter create` UNIQUEMENT si un projet natif manque ;
+# 2. résout les dépendances Flutter (dont le générateur de widgets) ;
+# 3. applique la configuration Strasse et génère les widgets natifs WidgetKit / Android Glance.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 target="${1:-all}"
@@ -24,16 +23,16 @@ case "$target" in
   *) echo "Usage : $0 android|ios|all" >&2; exit 2 ;;
 esac
 
-# `flutter create` est lancé dès qu'il manque le projet Xcode (cause de « Missing ios/Runner.xcodeproj ») ou le script Gradle.
+# La génération des widgets requiert les deux projets natifs, même lors d'une préparation ciblée Android ou iOS.
 need_create=0
-case "$platforms" in *android*) [ -f android/gradlew ] || need_create=1 ;; esac
-case "$platforms" in *ios*) [ -f ios/Runner.xcodeproj/project.pbxproj ] || need_create=1 ;; esac
+[ -f android/gradlew ] || need_create=1
+[ -f ios/Runner.xcodeproj/project.pbxproj ] || need_create=1
 if [ "$need_create" = 1 ]; then
-  flutter create --org fr.strasse --project-name strasse --platforms "$platforms" .
+  flutter create --org fr.strasse --project-name strasse --platforms android,ios .
 fi
 
-python3 tool/patch_platforms.py
 flutter pub get
+python3 tool/patch_platforms.py
 
 case "$platforms" in
   *ios*)

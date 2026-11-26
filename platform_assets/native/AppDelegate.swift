@@ -1,4 +1,5 @@
 import Flutter
+import AVFoundation
 import MediaPlayer
 import UIKit
 import UserNotifications
@@ -65,16 +66,62 @@ import MusicKit
           for item in items {
             // Les titres protégés (DRM / Apple Music) ou non téléchargés n'ont pas d'adresse de lecture.
             guard let url = item.assetURL else { continue }
-            out.append([
+            var track: [String: Any] = [
               "id": String(item.persistentID),
               "title": item.title ?? "",
               "artist": item.artist ?? "",
               "album": item.albumTitle ?? "",
               "durationMs": Int(item.playbackDuration * 1000),
               "uri": url.absoluteString,
-            ])
+            ]
+            if let image = item.artwork?.image(at: CGSize(width: 256, height: 256)),
+               let artwork = image.jpegData(compressionQuality: 0.82) {
+              track["artwork"] = FlutterStandardTypedData(bytes: artwork)
+            }
+            out.append(track)
           }
           DispatchQueue.main.async { result(out) }
+        }
+      case "metadataForFile":
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String,
+              !path.isEmpty else {
+          result(FlutterError(code: "invalid", message: "Chemin du fichier manquant.", details: nil))
+          return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+          let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+          var metadata: [String: Any] = [:]
+          for item in asset.commonMetadata {
+            guard let key = item.commonKey else { continue }
+            switch key {
+            case .commonKeyTitle:
+              if let value = item.stringValue, !value.isEmpty { metadata["title"] = value }
+            case .commonKeyArtist:
+              if let value = item.stringValue, !value.isEmpty { metadata["artist"] = value }
+            case .commonKeyAlbumName:
+              if let value = item.stringValue, !value.isEmpty { metadata["album"] = value }
+            case .commonKeyArtwork:
+              if let data = item.dataValue, let image = UIImage(data: data) {
+                let maxDimension: CGFloat = 512
+                let longest = max(image.size.width, image.size.height)
+                let scale = longest > maxDimension ? maxDimension / longest : 1
+                let size = CGSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
+                let renderer = UIGraphicsImageRenderer(size: size)
+                let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+                if let jpeg = resized.jpegData(compressionQuality: 0.84) {
+                  metadata["artwork"] = FlutterStandardTypedData(bytes: jpeg)
+                }
+              }
+            default:
+              break
+            }
+          }
+          let seconds = asset.duration.seconds
+          if seconds.isFinite && seconds > 0 {
+            metadata["durationMs"] = Int(seconds * 1000)
+          }
+          DispatchQueue.main.async { result(metadata) }
         }
       case "listPlaylists":
         DispatchQueue.global(qos: .userInitiated).async {
@@ -96,10 +143,15 @@ import MusicKit
           for l in MPMediaQuery.playlists().collections ?? [] where String(l.persistentID) == id {
             for item in l.items {
               guard let url = item.assetURL else { continue }
-              out.append([
+              var track: [String: Any] = [
                 "id": String(item.persistentID), "title": item.title ?? "", "artist": item.artist ?? "",
                 "album": item.albumTitle ?? "", "durationMs": Int(item.playbackDuration * 1000), "uri": url.absoluteString,
-              ])
+              ]
+              if let image = item.artwork?.image(at: CGSize(width: 256, height: 256)),
+                 let artwork = image.jpegData(compressionQuality: 0.82) {
+                track["artwork"] = FlutterStandardTypedData(bytes: artwork)
+              }
+              out.append(track)
             }
           }
           DispatchQueue.main.async { result(out) }
@@ -144,6 +196,15 @@ final class MusicKitBridge {
         case "authorize":
           let status = await MusicAuthorization.request()
           result(status == .authorized ? "authorized" : String(describing: status))
+        case "status":
+          let status = MusicAuthorization.currentStatus
+          let canPlay: Bool
+          if status == .authorized {
+            canPlay = try await MusicSubscription.current.canPlayCatalogContent
+          } else {
+            canPlay = false
+          }
+          result(["authorized": status == .authorized, "canPlay": canPlay])
         case "canPlay":
           let sub = try await MusicSubscription.current
           result(sub.canPlayCatalogContent)
@@ -204,12 +265,13 @@ final class MusicKitBridge {
 
   private func search(_ term: String) async throws -> [String: Any] {
     guard !term.isEmpty else { return ["tracks": [], "collections": []] }
-    var req = MusicCatalogSearchRequest(term: term, types: [Song.self, Album.self, Artist.self])
+    var req = MusicCatalogSearchRequest(term: term, types: [Song.self, Album.self, Artist.self, Playlist.self])
     req.limit = 20
     let res = try await req.response()
     var cols: [[String: Any?]] = []
     for a in res.albums { cols.append(["id": a.id.rawValue, "kind": "album", "title": a.title, "subtitle": a.artistName, "art": art(a.artwork)]) }
     for a in res.artists { cols.append(["id": a.id.rawValue, "kind": "artist", "title": a.name, "subtitle": "", "art": art(a.artwork)]) }
+    for p in res.playlists { cols.append(["id": p.id.rawValue, "kind": "playlist", "title": p.name, "subtitle": "", "art": art(p.artwork)]) }
     return ["tracks": res.songs.map { songMap($0) }, "collections": cols]
   }
 

@@ -21,7 +21,7 @@ class Failure implements Exception {
 
   factory Failure.offline() => const Failure(
         FailureKind.offline,
-        'Connexion impossible. Vérifiez votre réseau puis réessayez.',
+        'Aucune connexion Internet n’est disponible. Réessayez lorsque l’appareil sera connecté.',
         code: 'offline',
       );
 
@@ -38,7 +38,13 @@ class Failure implements Exception {
     if (e.type.name.toLowerCase().contains('timeout')) {
       return const Failure(FailureKind.timeout, 'Le serveur met trop de temps à répondre. Réessayez.', code: 'timeout');
     }
-    if (e.type == DioExceptionType.connectionError) return Failure.offline();
+    if (e.type == DioExceptionType.connectionError) {
+      return const Failure(
+        FailureKind.server,
+        'Le serveur est injoignable. Votre connexion peut fonctionner normalement ; réessayez plus tard.',
+        code: 'connection_error',
+      );
+    }
     if (e.type == DioExceptionType.cancel) {
       return const Failure(FailureKind.unknown, 'Opération annulée.', code: 'cancelled');
     }
@@ -74,7 +80,7 @@ class Failure implements Exception {
     if (status != null && status >= 400) {
       return Failure(FailureKind.client, serverMessage ?? 'Requête refusée par le serveur ($status).', code: code);
     }
-    return Failure.offline();
+    return Failure.unknown(e);
   }
 
   @override

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart' hide Text;
 import 'package:strasse/core/i18n/tr_text.dart';
@@ -10,18 +12,24 @@ import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/map/map_style_builder.dart';
+import 'package:strasse/features/map/map_provider_health_check.dart';
 import 'package:strasse/features/map/poi_badges.dart';
+import 'package:strasse/features/services/provider_models.dart';
+import 'package:strasse/features/services/provider_resolver.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:strasse/features/settings/settings_model.dart';
 
 /// Épingle affichée sur la carte (destination, étape, résultat de recherche…).
 class MapPin {
-  const MapPin({required this.id, required this.point, required this.color, this.radius = 9, this.onTap});
+  const MapPin({required this.id, required this.point, required this.color, this.radius = 9, this.onTap, this.iconImage});
   final String id;
   final GeoPoint point;
   final Color color;
   final double radius;
   final VoidCallback? onTap;
+
+  /// Image de badge MapLibre déjà enregistrée dans le style (par exemple `poi-food`).
+  final String? iconImage;
 }
 
 /// Ligne supplémentaire (tronçon de transport en commun, trace…).
@@ -81,6 +89,13 @@ class StrasseMapController {
   final Map<String, Object> _lineToTag = {};
   final Map<String, MapEvent> _circleToEvent = {};
   final Map<String, MapPin> _circleToPin = {};
+  final Map<String, MapPin> _symbolToPin = {};
+  bool _externalSatelliteEnabled = false;
+
+  static const String _satelliteWorldSource = 'strasse-ext-satellite-world-source';
+  static const String _satelliteFranceSource = 'strasse-ext-satellite-france-source';
+  static const String _satelliteWorldLayer = 'strasse-ext-satellite-world-layer';
+  static const String _satelliteFranceLayer = 'strasse-ext-satellite-france-layer';
 
   void Function(int routeIndex)? onRouteTapped;
   void Function(MapEvent event)? onEventTapped;
@@ -91,16 +106,30 @@ class StrasseMapController {
 
   bool get isReady => _c != null;
 
+  /// Capture une image PNG de la carte courante pour l'aperçu du widget d'accueil.
+  /// La capture échoue silencieusement si la vue native n'est pas encore prête ou est détruite.
+  Future<Uint8List?> takeWidgetSnapshot({int width = 720, int height = 360}) async {
+    final c = _c;
+    if (c == null) return null;
+    try {
+      return await c.takeSnapshot(width: width, height: height).timeout(const Duration(seconds: 6));
+    } catch (_) {
+      return null;
+    }
+  }
+
   void attach(ml.MapLibreMapController controller) {
     _c = controller;
     controller.onCircleTapped.add(_circleTapped);
     controller.onLineTapped.add(_lineTapped);
+    controller.onSymbolTapped.add(_symbolTapped);
     controller.addListener(_cameraChanged);
   }
 
   void detach() {
     _stopGlide();
     _c?.removeListener(_cameraChanged);
+    _c?.onSymbolTapped.remove(_symbolTapped);
     _c = null;
   }
 
@@ -128,6 +157,10 @@ class StrasseMapController {
     if (tag != null) onLineTag?.call(tag);
   }
 
+  void _symbolTapped(ml.Symbol symbol) {
+    _symbolToPin[symbol.id]?.onTap?.call();
+  }
+
   Future<void> _enqueue(Future<void> Function() task) {
     _queue = _queue.then((_) async {
       try {
@@ -137,6 +170,105 @@ class StrasseMapController {
       }
     });
     return _queue;
+  }
+
+  /// Active l'imagerie satellite au-dessus de n'importe quel style fournisseur distant.
+  /// Le style du fournisseur n'est jamais remplacé : seules deux sources raster sont ajoutées.
+  Future<void> setExternalSatelliteEnabled(bool enabled) {
+    _externalSatelliteEnabled = enabled;
+    return _enqueue(_applyExternalSatellite);
+  }
+
+  Future<void> _applyExternalSatellite() async {
+    final c = _c;
+    if (c == null) return;
+
+    final layerIds = (await c.getLayerIds()).whereType<String>().toSet();
+    if (!_externalSatelliteEnabled) {
+      for (final id in const [_satelliteFranceLayer, _satelliteWorldLayer]) {
+        if (layerIds.contains(id)) {
+          await c.removeLayer(id);
+        }
+      }
+      final sourceIds = (await c.getSourceIds()).toSet();
+      for (final id in const [_satelliteFranceSource, _satelliteWorldSource]) {
+        if (sourceIds.contains(id)) {
+          await c.removeSource(id);
+        }
+      }
+      return;
+    }
+
+    final sourceIds = (await c.getSourceIds()).toSet();
+    if (!sourceIds.contains(_satelliteWorldSource)) {
+      await c.addSource(
+        _satelliteWorldSource,
+        const ml.RasterSourceProperties(
+          tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'],
+          tileSize: 256,
+          maxzoom: 13,
+          attribution: 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
+        ),
+      );
+    }
+    if (!sourceIds.contains(_satelliteFranceSource)) {
+      await c.addSource(
+        _satelliteFranceSource,
+        const ml.RasterSourceProperties(
+          tiles: [
+            'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg',
+          ],
+          tileSize: 256,
+          minzoom: 6,
+          maxzoom: 19,
+          bounds: [-5.6, 41.2, 10.0, 51.2],
+          attribution: 'Orthophotographies © IGN (Licence Ouverte)',
+        ),
+      );
+    }
+
+    // Place les images au-dessus des aplats de fond et sous les premières routes/étiquettes
+    // du style chargé. Les ID des couches sont lus dans le style original du fournisseur.
+    String? belowLayerId;
+    final rawStyle = await c.getStyle();
+    if (rawStyle != null && rawStyle.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawStyle);
+        final layers = decoded is Map ? decoded['layers'] : null;
+        if (layers is List) {
+          for (final layer in layers) {
+            // Insérer l'image sous la première couche de routes ou de symboles afin de préserver les libellés.
+            if (layer is Map && layer['id'] is String && const {'line', 'symbol'}.contains(layer['type'])) {
+              belowLayerId = layer['id'] as String;
+              break;
+            }
+          }
+        }
+      } on FormatException {
+        // Certains styles propriétaires ne sont pas exposés sous forme de JSON exploitable.
+      }
+    }
+
+    final existingLayers = (await c.getLayerIds()).whereType<String>().toSet();
+    if (!existingLayers.contains(_satelliteWorldLayer)) {
+      await c.addRasterLayer(
+        _satelliteWorldSource,
+        _satelliteWorldLayer,
+        const ml.RasterLayerProperties(rasterFadeDuration: 150),
+        belowLayerId: belowLayerId,
+        maxzoom: 13,
+      );
+    }
+    if (!existingLayers.contains(_satelliteFranceLayer)) {
+      await c.addRasterLayer(
+        _satelliteFranceSource,
+        _satelliteFranceLayer,
+        const ml.RasterLayerProperties(rasterFadeDuration: 150),
+        belowLayerId: belowLayerId,
+        minzoom: 6,
+        maxzoom: 19,
+      );
+    }
   }
 
   // ------------------------------------------------------------ État souhaité
@@ -304,8 +436,12 @@ class StrasseMapController {
   Future<void> reapply() => _enqueue(() async {
         final c = _c;
         if (c == null) return;
+        await _applyExternalSatellite();
         await c.clearLines();
         await c.clearCircles();
+        await c.clearSymbols();
+        _symbolsUnavailable.clear();
+        _symbolToPin.clear();
         _lines.clear();
         _circles.clear();
         _lineToRoute.clear();
@@ -324,38 +460,104 @@ class StrasseMapController {
       });
 
   Future<void> _registerPoiBadges(ml.MapLibreMapController c) async {
-    try {
-      for (final b in [...PoiBadges.all, PoiBadges.other]) {
+    for (final b in [...PoiBadges.all, PoiBadges.other]) {
+      try {
         await c.addImage(b.image, await PoiBadges.render(b));
+      } catch (_) {
+        // Une image déjà présente n'empêche pas l'enregistrement des badges suivants.
       }
-    } catch (_) {
-      // Image déjà présente dans le style rechargé : sans conséquence.
     }
   }
 
-  /// Lieu déjà repéré par un badge ou un nom sur la carte, sous le point touché (null si rien n'y est affiché).
+  /// Certains styles tiers n'acceptent pas les images d'annotation. Ces POI gardent alors
+  /// un cercle cliquable au lieu de disparaître.
+  final Set<String> _symbolsUnavailable = {};
+
+  static const Set<String> _renderedPoiClasses = {
+    'amenity',
+    'shop',
+    'tourism',
+    'leisure',
+    'historic',
+    'healthcare',
+    'office',
+    'craft',
+    'club',
+    'sport',
+    'railway',
+    'public_transport',
+    'aeroway',
+    'natural',
+    'man_made',
+    'emergency',
+    'place',
+  };
+
+  /// Convertit une entité ponctuelle rendue par le style MapLibre en lieu Strasse.
+  /// Le filtrage par couche source ou classe évite d'ouvrir une fiche sur les routes et polygones ordinaires.
+  static Place? placeFromRenderedFeature(Object? feature) {
+    if (feature is! Map) return null;
+    final properties = feature['properties'];
+    final geometry = feature['geometry'];
+    if (properties is! Map || geometry is! Map || geometry['type'] != 'Point') return null;
+    final coordinates = geometry['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 || coordinates[0] is! num || coordinates[1] is! num) return null;
+
+    final sourceLayer = feature['sourceLayer'] ?? feature['source-layer'];
+    final layer = feature['layer'];
+    final layerId = layer is Map ? layer['id'] : null;
+    final layerName = '${sourceLayer ?? layerId ?? ''}'.toLowerCase();
+    final cls = properties['class'] is String ? (properties['class'] as String).toLowerCase() : '';
+    final sub = properties['subclass'] is String ? (properties['subclass'] as String) : null;
+    final isPoiLayer = layerName.contains('poi') ||
+        layerName.contains('amenit') ||
+        layerName.contains('shop') ||
+        layerName.contains('tourism') ||
+        layerName.contains('transit');
+    if (!isPoiLayer && !_renderedPoiClasses.contains(cls)) return null;
+
+    final nameCandidates = [
+      properties['name:fr'],
+      properties['name'],
+      properties['name:en'],
+      properties['name:de'],
+      properties['official_name'],
+      properties['brand'],
+    ];
+    final name = nameCandidates.whereType<String>().map((value) => value.trim()).firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    if (name.isEmpty) return null;
+
+    final lon = (coordinates[0] as num).toDouble();
+    final lat = (coordinates[1] as num).toDouble();
+    if (!lat.isFinite || !lon.isFinite || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    final id = feature['id']?.toString();
+    final stableId = id == null || id.isEmpty ? '${lat.toStringAsFixed(6)},${lon.toStringAsFixed(6)}' : id;
+    return Place(
+      id: 'map:$stableId',
+      name: name,
+      point: GeoPoint(lat, lon),
+      category: sub ?? (cls.isEmpty ? null : cls),
+      source: 'map',
+    );
+  }
+
+  /// Lieu déjà repéré dans la zone touchée. Interroge le style chargé plutôt que des identifiants
+  /// de couches propriétaires qui n'existent pas chez tous les fournisseurs MapLibre.
   Future<Place?> placeAt(math.Point<double> screen) async {
     final c = _c;
     if (c == null) return null;
     try {
       final rect = Rect.fromCenter(center: Offset(screen.x, screen.y), width: 36, height: 36);
-      final found = await c.queryRenderedFeaturesInRect(rect, const ['poi-dots', 'poi-labels'], null);
-      for (final f in found) {
-        if (f is! Map) continue;
-        final props = f['properties'];
-        final geom = f['geometry'];
-        if (props is! Map || geom is! Map) continue;
-        final coords = geom['coordinates'];
-        if (coords is! List || coords.length < 2) continue;
-        final name = '${props['name:fr'] ?? props['name'] ?? ''}'.trim();
-        if (name.isEmpty) continue;
-        final cls = props['class'] is String ? props['class'] as String : null;
-        final sub = props['subclass'] is String ? props['subclass'] as String : null;
-        final lon = (coords[0] as num).toDouble();
-        final lat = (coords[1] as num).toDouble();
-        return Place(id: 'map:${lat.toStringAsFixed(6)},${lon.toStringAsFixed(6)}', name: name, point: GeoPoint(lat, lon), category: sub ?? cls, source: 'map');
+      final layerIds = (await c.getLayerIds()).whereType<String>().toList(growable: false);
+      if (layerIds.isEmpty) return null;
+      final found = await c.queryRenderedFeaturesInRect(rect, layerIds, null);
+      for (final feature in found) {
+        final place = placeFromRenderedFeature(feature);
+        if (place != null) return place;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Les styles sans requête de features disponible conservent le geste de carte normal.
+    }
     return null;
   }
 
@@ -423,6 +625,14 @@ class StrasseMapController {
     _circles.clear();
     _circleToEvent.clear();
     _circleToPin.clear();
+    _symbolToPin.clear();
+    if (_symbolToPin.isEmpty) {
+      try {
+        await c.clearSymbols();
+      } catch (_) {
+        // Aucun symbole d'annotation sur ce style ou après une reconstruction native.
+      }
+    }
 
     for (final e in _events) {
       final circle = await c.addCircle(ml.CircleOptions(
@@ -436,7 +646,34 @@ class StrasseMapController {
       _circles.add(circle);
       _circleToEvent[circle.id] = e;
     }
-    for (final p in [..._transitStops, ..._poiPins]) {
+    for (final p in _transitStops) {
+      final circle = await c.addCircle(ml.CircleOptions(
+        geometry: _ll(p.point),
+        circleRadius: p.radius,
+        circleColor: hex(p.color),
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
+      ));
+      _circles.add(circle);
+      _circleToPin[circle.id] = p;
+    }
+
+    for (final p in _poiPins) {
+      final image = p.iconImage;
+      if (image != null && !_symbolsUnavailable.contains(image)) {
+        try {
+          final symbol = await c.addSymbol(ml.SymbolOptions(
+            geometry: _ll(p.point),
+            iconImage: image,
+            iconSize: 0.9,
+            iconAnchor: 'bottom',
+          ));
+          _symbolToPin[symbol.id] = p;
+          continue;
+        } catch (_) {
+          _symbolsUnavailable.add(image);
+        }
+      }
       final circle = await c.addCircle(ml.CircleOptions(
         geometry: _ll(p.point),
         circleRadius: p.radius,
@@ -681,13 +918,88 @@ class StrasseMap extends ConsumerStatefulWidget {
 
 class _StrasseMapState extends ConsumerState<StrasseMap> {
   final StrasseMapController _controller = StrasseMapController();
+  late final MapProviderHealthCheck _mapHealthCheck = MapProviderHealthCheck(
+    userAgent: ref.read(appConfigProvider).userAgent,
+  );
+  Timer? _mapHealthTimer;
+  ServiceProvider? _activeTilesProvider;
+  bool _checkingMapProvider = false;
+  bool _mapProviderUnavailable = false;
   String _style = '';
   String _styleKey = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resolveMapProvider();
+    });
+    _mapHealthTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _resolveMapProvider();
+    });
+  }
+
+  @override
   void dispose() {
+    _mapHealthTimer?.cancel();
+    _mapHealthCheck.close();
     _controller.detach();
     super.dispose();
+  }
+
+  String _mapProviderConfigurationKey(ProviderResolver resolver) => [
+        resolver.settings.autoFallback,
+        for (final provider in resolver.mapCandidates())
+          '${provider.id}|${provider.adapter}|${ProviderResolver.normalize(resolver.urlOf(provider))}',
+      ].join('|');
+
+  Future<void> _resolveMapProvider() async {
+    if (_checkingMapProvider || !mounted) return;
+    _checkingMapProvider = true;
+    try {
+      final resolver = ref.read(providerResolverProvider);
+      final candidates = resolver.mapCandidates();
+      final selected = resolver.selected(ServiceCategory.tiles);
+      if (candidates.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _activeTilesProvider = selected;
+            _mapProviderUnavailable = true;
+          });
+        }
+        return;
+      }
+
+      final ordered = <ServiceProvider>[candidates.first];
+      if (resolver.settings.autoFallback && _activeTilesProvider != null) {
+        ordered.add(_activeTilesProvider!);
+      }
+      ordered.addAll(candidates.skip(1));
+      final seen = <String>{};
+      ServiceProvider? healthy;
+      for (final provider in ordered) {
+        final key = '${provider.id}|${ProviderResolver.normalize(resolver.urlOf(provider))}';
+        if (!seen.add(key)) continue;
+        if (await _mapHealthCheck.isHealthy(provider, resolver)) {
+          healthy = provider;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+      final next = healthy ?? selected;
+      final changed = _activeTilesProvider?.id != next.id ||
+          ProviderResolver.normalize(resolver.urlOf(_activeTilesProvider ?? selected)) != ProviderResolver.normalize(resolver.urlOf(next)) ||
+          _mapProviderUnavailable != (healthy == null);
+      if (changed) {
+        setState(() {
+          _activeTilesProvider = next;
+          _mapProviderUnavailable = healthy == null;
+        });
+      }
+    } finally {
+      _checkingMapProvider = false;
+    }
   }
 
   String _buildStyle(BuildContext context) {
@@ -695,10 +1007,30 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
     final config = ref.watch(appConfigProvider);
     final platform = MediaQuery.platformBrightnessOf(context);
     final brightness = widget.forceDark == null ? platform : (widget.forceDark! ? Brightness.dark : Brightness.light);
-    final src = ref.watch(providerResolverProvider).mapSource();
-    final key = '${identityHashCode(settings)}|$brightness|${src.tilesUrl}|${src.glyphsUrl}|${src.styleUrl}|${widget.forceDark}';
+    final resolver = ref.watch(providerResolverProvider);
+    final src = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
+    final key = [
+      settings.mapStyle.name,
+      settings.customRoadColor,
+      settings.customBuildingColor,
+      settings.customWaterColor,
+      settings.customGreenColor,
+      settings.showBuildings,
+      settings.showPoi,
+      settings.showTransit,
+      settings.showCycleways,
+      settings.showSatellite,
+      settings.mapDensity,
+      brightness.name,
+      src.tilesUrl,
+      src.glyphsUrl,
+      src.styleUrl,
+      config.mapFont,
+      config.tilesAttribution,
+      widget.forceDark,
+    ].join('|');
     if (key == _styleKey) return _style;
-    if (src.styleUrl != null && !(settings.showSatellite && src.tilesUrl.isNotEmpty)) {
+    if (src.styleUrl != null) {
       // Style complet d'un fournisseur (ex. OpenFreeMap Liberty) : utilisé tel quel.
       _style = src.styleUrl!;
       _styleKey = key;
@@ -720,10 +1052,27 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider);
+    ref.listen<ProviderResolver>(providerResolverProvider, (previous, next) {
+      if (previous == null || _mapProviderConfigurationKey(previous) == _mapProviderConfigurationKey(next)) return;
+      _activeTilesProvider = null;
+      _mapProviderUnavailable = false;
+      _resolveMapProvider();
+    });
+    ref.listen<AppSettings>(settingsProvider, (previous, next) {
+      if (previous?.showSatellite == next.showSatellite) return;
+      final resolver = ref.read(providerResolverProvider);
+      final source = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
+      _controller.setExternalSatelliteEnabled(source.styleUrl != null && next.showSatellite);
+    });
     final config = ref.watch(appConfigProvider);
+    final settings = ref.watch(settingsProvider);
+    final resolver = ref.watch(providerResolverProvider);
+    final effectiveSource = resolver.mapSource(provider: _activeTilesProvider ?? resolver.selected(ServiceCategory.tiles));
     final style = _buildStyle(context);
-    final hasTiles = ref.watch(providerResolverProvider).mapSource().available;
+    final hasTiles = effectiveSource.available;
+    final usingFallback = _activeTilesProvider != null &&
+        _activeTilesProvider!.id != resolver.selected(ServiceCategory.tiles).id &&
+        !_mapProviderUnavailable;
     final fix = ref.read(locationFixOnceProvider);
     final target = widget.initialTarget ?? fix ?? const GeoPoint(46.6, 2.4);
     final zoom = widget.initialTarget != null || fix != null ? widget.initialZoom : 5.2;
@@ -738,7 +1087,12 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
             _controller.attach(c);
             widget.onReady(_controller);
           },
-          onStyleLoadedCallback: () => _controller.reapply(),
+          onStyleLoadedCallback: () {
+            final currentResolver = ref.read(providerResolverProvider);
+            final source = currentResolver.mapSource(provider: _activeTilesProvider ?? currentResolver.selected(ServiceCategory.tiles));
+            _controller.setExternalSatelliteEnabled(source.styleUrl != null && ref.read(settingsProvider).showSatellite);
+            _controller.reapply();
+          },
           onMapClick: (math.Point<double> pt, ml.LatLng ll) async {
             if (widget.onPlaceTap != null) {
               final place = await _controller.placeAt(pt);
@@ -760,6 +1114,61 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
           tiltGesturesEnabled: widget.interactive && !widget.lockNorth,
           minMaxZoomPreference: const ml.MinMaxZoomPreference(2, 20),
         ),
+        if (_mapProviderUnavailable && hasTiles)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.paddingOf(context).top + 72,
+            child: Material(
+              color: cs.errorContainer,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.wifi_off_rounded, color: cs.onErrorContainer),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Aucun fournisseur cartographique ne répond. Vérifiez la connexion ou choisissez un autre service dans Réglages > Services.',
+                        style: TextStyle(color: cs.onErrorContainer, fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Réessayer',
+                      onPressed: _resolveMapProvider,
+                      icon: Icon(Icons.refresh_rounded, color: cs.onErrorContainer),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (usingFallback)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.paddingOf(context).top + 72,
+            child: Material(
+              color: cs.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz_rounded, color: cs.onSurface),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Le fournisseur principal est indisponible. Strasse utilise temporairement ${_activeTilesProvider!.name}.',
+                        style: TextStyle(color: cs.onSurface, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (!hasTiles)
           Positioned(
             left: 16,
@@ -785,18 +1194,53 @@ class _StrasseMapState extends ConsumerState<StrasseMap> {
               ),
             ),
           ),
-        // Crédits obligatoires : OpenStreetMap + fournisseur de tuiles.
+        // Les crédits obligatoires restent disponibles, mais prennent désormais la place d'une simple icône.
         Positioned(
           left: 8,
           bottom: widget.attributionBottomPadding,
-          child: GestureDetector(
-            onTap: () => launchUrl(Uri.parse(AppConfig.osmCopyrightUrl), mode: LaunchMode.externalApplication),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: cs.surface.withOpacity(0.8), borderRadius: BorderRadius.circular(8)),
-              child: Text(
-                [AppConfig.osmAttribution, if (config.tilesAttribution.isNotEmpty) config.tilesAttribution].join(' · '),
-                style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.8)),
+          child: Material(
+            color: cs.surface.withOpacity(0.92),
+            shape: const CircleBorder(),
+            elevation: 2,
+            child: IconButton(
+              tooltip: 'Sources et crédits cartographiques',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.info_outline_rounded, size: 20),
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                builder: (sheetContext) => SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Sources et crédits cartographiques', style: Theme.of(sheetContext).textTheme.titleLarge),
+                        const SizedBox(height: 12),
+                        SelectableText(AppConfig.osmAttribution),
+                        if (config.tilesAttribution.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          SelectableText(config.tilesAttribution),
+                        ],
+                        if (settings.showSatellite) ...[
+                          const SizedBox(height: 8),
+                          const Text('EOxCloudless · EOX IT Services GmbH · données Copernicus Sentinel-2 (2016–2017).'),
+                          const SizedBox(height: 6),
+                          const Text('Orthophotographies © IGN · Licence Ouverte.'),
+                        ],
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => launchUrl(Uri.parse(AppConfig.osmCopyrightUrl), mode: LaunchMode.externalApplication),
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text('Crédits OpenStreetMap'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

@@ -18,8 +18,14 @@ class AppConfig {
     this.supabaseAnonKey = '',
     this.openTripMapKey = '',
     this.spotifyClientId = '',
+    this.youtubeIosClientId = '',
+    this.youtubeServerClientId = '',
+    this.googlePlacesApiKey = '',
     this.contact = '',
   });
+
+  static const String defaultSupabaseUrl = 'https://msgaoprkocgbsirbjaab.supabase.co';
+  static const String defaultSupabasePublishableKey = 'sb_publishable_3TXETm0ckp57A6TQfyJ-eg_dD_EkyOd';
 
   static const AppConfig fromEnvironment = AppConfig(
     env: String.fromEnvironment('STRASSE_ENV', defaultValue: 'dev'),
@@ -32,10 +38,13 @@ class AppConfig {
     geocoderUrl: String.fromEnvironment('STRASSE_GEOCODER_URL'),
     otpUrl: String.fromEnvironment('STRASSE_OTP_URL'),
     overpassUrl: String.fromEnvironment('STRASSE_OVERPASS_URL'),
-    supabaseUrl: String.fromEnvironment('STRASSE_SUPABASE_URL'),
-    supabaseAnonKey: String.fromEnvironment('STRASSE_SUPABASE_ANON_KEY'),
+    supabaseUrl: String.fromEnvironment('STRASSE_SUPABASE_URL', defaultValue: defaultSupabaseUrl),
+    supabaseAnonKey: String.fromEnvironment('STRASSE_SUPABASE_ANON_KEY', defaultValue: defaultSupabasePublishableKey),
     openTripMapKey: String.fromEnvironment('STRASSE_OPENTRIPMAP_KEY'),
     spotifyClientId: String.fromEnvironment('STRASSE_SPOTIFY_CLIENT_ID'),
+    youtubeIosClientId: String.fromEnvironment('STRASSE_YOUTUBE_IOS_CLIENT_ID'),
+    youtubeServerClientId: String.fromEnvironment('STRASSE_YOUTUBE_SERVER_CLIENT_ID'),
+    googlePlacesApiKey: String.fromEnvironment('STRASSE_GOOGLE_PLACES_API_KEY'),
     contact: String.fromEnvironment('STRASSE_CONTACT'),
   );
 
@@ -52,13 +61,16 @@ class AppConfig {
   /// Point d'accès Overpass (…/api/interpreter) utilisé pour préparer les itinéraires hors connexion.
   final String overpassUrl;
 
-  /// Projet Supabase du développeur : adresse et clé publique « anon » (jamais la clé « service_role »).
+  /// Projet Supabase Strasse : URL et clé publique anon/publishable. Une clé secrète ne doit jamais être intégrée au client.
   final String supabaseUrl;
   final String supabaseAnonKey;
 
   /// Clé gratuite OpenTripMap, identifiant client Spotify (PKCE, public).
   final String openTripMapKey;
   final String spotifyClientId;
+  final String youtubeIosClientId;
+  final String youtubeServerClientId;
+  final String googlePlacesApiKey;
 
   /// Contact (adresse e-mail ou site) inclus dans le User-Agent, exigé par les politiques d'usage d'OSM.
   final String contact;
@@ -80,5 +92,4 @@ class AppConfig {
   static const String repoUrl = 'https://github.com/lastapps888/Strasse';
 
   /// Destinataire des retours d'utilisateurs (adresse publique, aucun secret).
-  static const String feedbackEmail = 'srohsed.barjo.projet@gmail.com';
 }

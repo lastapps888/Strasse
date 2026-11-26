@@ -8,7 +8,7 @@ import 'package:strasse/core/core.dart';
 
 /// Version publiée sur les « Releases » GitHub officielles de Strasse.
 class AppRelease {
-  const AppRelease({required this.version, required this.tag, required this.notes, required this.pageUrl, this.publishedAt, this.apkUrl, this.apkName, this.apkSha256, this.apkSize, this.ipaUrl, this.ipaName});
+  const AppRelease({required this.version, required this.tag, required this.notes, required this.pageUrl, this.publishedAt, this.apkUrl, this.apkName, this.apkSha256, this.apkSize, this.ipaUrl, this.ipaName, this.ipaSha256, this.ipaSize, this.isPrerelease = false});
   final String version;
   final String tag;
   final String notes;
@@ -21,7 +21,9 @@ class AppRelease {
   final String? apkSha256;
   final int? apkSize;
   final String? ipaUrl;
-  final String? ipaName;
+  final String? ipaName;  final String? ipaSha256;
+  final int? ipaSize;
+  final bool isPrerelease;
 }
 
 class UpdateException implements Exception {
@@ -31,19 +33,81 @@ class UpdateException implements Exception {
   String toString() => message;
 }
 
-/// Compare deux numéros de version `1.2.3` (ignore un préfixe `v` et un suffixe `+build` / `-pre`). Retourne <0, 0 ou >0.
-int compareVersions(String a, String b) {
-  List<int> parse(String v) {
-    final core = v.trim().replaceFirst(RegExp(r'^[vV]'), '').split(RegExp(r'[+\-]')).first;
-    return [for (final p in core.split('.')) int.tryParse(p) ?? 0];
+class _ParsedVersion {
+  const _ParsedVersion(this.major, this.minor, this.patch, this.prerelease);
+
+  final int major;
+  final int minor;
+  final int patch;
+  final List<String> prerelease;
+
+  bool get isPrerelease => prerelease.isNotEmpty;
+}
+
+_ParsedVersion? _parseVersion(String input) {
+  final value = input.trim().replaceFirst(RegExp(r'^[vV]'), '');
+  final match = RegExp(
+    r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$',
+  ).firstMatch(value);
+  if (match == null) return null;
+
+  final prerelease = match.group(4);
+  if (prerelease != null) {
+    for (final identifier in prerelease.split('.')) {
+      if (RegExp(r'^[0-9]+$').hasMatch(identifier) &&
+          identifier.length > 1 &&
+          identifier.startsWith('0')) {
+        return null;
+      }
+    }
   }
 
-  final x = parse(a), y = parse(b);
-  for (var i = 0; i < 4; i++) {
-    final xi = i < x.length ? x[i] : 0, yi = i < y.length ? y[i] : 0;
-    if (xi != yi) return xi.compareTo(yi);
+  return _ParsedVersion(
+    int.parse(match.group(1)!),
+    int.parse(match.group(2)!),
+    int.parse(match.group(3)!),
+    prerelease == null ? const [] : prerelease.split('.'),
+  );
+}
+
+/// Compare deux versions SemVer 2.0.0. Une version stable est supérieure à ses préversions.
+int compareVersions(String a, String b) {
+  final x = _parseVersion(a);
+  final y = _parseVersion(b);
+  if (x == null || y == null) return a.compareTo(b);
+
+  final coreResults = [
+    x.major.compareTo(y.major),
+    x.minor.compareTo(y.minor),
+    x.patch.compareTo(y.patch),
+  ];
+  for (final result in coreResults) {
+    if (result != 0) return result;
   }
-  return 0;
+
+  if (!x.isPrerelease && !y.isPrerelease) return 0;
+  if (!x.isPrerelease) return 1;
+  if (!y.isPrerelease) return -1;
+
+  final commonLength = x.prerelease.length < y.prerelease.length
+      ? x.prerelease.length
+      : y.prerelease.length;
+  for (var i = 0; i < commonLength; i++) {
+    final left = x.prerelease[i];
+    final right = y.prerelease[i];
+    if (left == right) continue;
+
+    final leftNumber = int.tryParse(left);
+    final rightNumber = int.tryParse(right);
+    if (leftNumber != null && rightNumber != null) {
+      return leftNumber.compareTo(rightNumber);
+    }
+    if (leftNumber != null) return -1;
+    if (rightNumber != null) return 1;
+    return left.compareTo(right);
+  }
+
+  return x.prerelease.length.compareTo(y.prerelease.length);
 }
 
 /// Vérification et téléchargement des mises à jour depuis les Releases GitHub (API publique, sans compte ni clé).
@@ -60,53 +124,89 @@ class UpdateService {
   final Dio _dio;
   static const _channel = MethodChannel('fr.strasse.strasse/update');
 
-  static const latestUrl = 'https://api.github.com/repos/lastapps888/Strasse/releases/latest';
+  static const releasesUrl = 'https://api.github.com/repos/lastapps888/Strasse/releases?per_page=50';
 
-  Future<AppRelease?> latest() async {
+  /// Les installations bêta reçoivent les préversions suivantes. Une installation stable ne bascule pas automatiquement sur une bêta.
+  Future<AppRelease?> latest({String installedVersion = ''}) async {
     try {
-      final r = await _dio.get<Map<String, dynamic>>(latestUrl);
-      return parseRelease(r.data);
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null; // aucune version publiée
-      throw Failure.fromDio(e);
+      final response = await _dio.get<List<dynamic>>(releasesUrl);
+      final releases = <AppRelease>[];
+      for (final raw in response.data ?? const []) {
+        if (raw is! Map) continue;
+        final release = parseRelease(Map<String, dynamic>.from(raw));
+        if (release != null) releases.add(release);
+      }
+      if (releases.isEmpty) return null;
+
+      final installedIsPrerelease = _parseVersion(installedVersion)?.isPrerelease ?? false;
+      final candidates = releases
+          .where((release) => installedIsPrerelease || !release.isPrerelease)
+          .toList();
+      if (candidates.isEmpty) return null;
+      candidates.sort((a, b) => compareVersions(b.version, a.version));
+      return candidates.first;
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      throw Failure.fromDio(error);
     }
   }
 
-  static AppRelease? parseRelease(Map<String, dynamic>? j) {
-    if (j == null || j['draft'] == true || j['prerelease'] == true) return null;
-    final tag = '${j['tag_name'] ?? ''}';
+  static AppRelease? parseRelease(Map<String, dynamic>? json) {
+    if (json == null || json['draft'] == true) return null;
+
+    final tag = (json['tag_name'] ?? '').toString();
     if (tag.isEmpty) return null;
-    String? apkUrl, apkName, apkSha, ipaUrl, ipaName;
+
+    String? apkUrl;
+    String? apkName;
+    String? apkSha;
+    String? ipaUrl;
+    String? ipaName;
+    String? ipaSha;
     int? apkSize;
-    final assets = (j['assets'] as List?) ?? const [];
-    for (final a in assets) {
-      if (a is! Map) continue;
-      final name = '${a['name'] ?? ''}';
-      final url = '${a['browser_download_url'] ?? ''}';
+    int? ipaSize;
+
+    final assets = (json['assets'] as List?) ?? const [];
+    for (final rawAsset in assets) {
+      if (rawAsset is! Map) continue;
+      final name = (rawAsset['name'] ?? '').toString();
+      final url = (rawAsset['browser_download_url'] ?? '').toString();
       if (!url.startsWith('https://')) continue;
+
       if (name.toLowerCase().endsWith('.apk') && apkUrl == null) {
         apkUrl = url;
         apkName = name;
-        apkSize = (a['size'] as num?)?.toInt();
-        final d = '${a['digest'] ?? ''}';
-        if (d.startsWith('sha256:')) apkSha = d.substring(7).toLowerCase();
+        apkSize = (rawAsset['size'] as num?)?.toInt();
+        final digestValue = rawAsset['digest'];
+        final digest = digestValue is String ? digestValue : '';
+        if (digest.startsWith('sha256:')) apkSha = digest.substring(7).toLowerCase();
       } else if (name.toLowerCase().endsWith('.ipa') && ipaUrl == null) {
         ipaUrl = url;
         ipaName = name;
+        ipaSize = (rawAsset['size'] as num?)?.toInt();
+        final digestValue = rawAsset['digest'];
+        final digest = digestValue is String ? digestValue : '';
+        if (digest.startsWith('sha256:')) ipaSha = digest.substring(7).toLowerCase();
       }
     }
+
+    final normalizedTag = tag.replaceFirst(RegExp(r'^[vV]'), '');
+    final parsedTag = _parseVersion(normalizedTag);
     return AppRelease(
-      version: tag.replaceFirst(RegExp(r'^[vV]'), ''),
+      version: normalizedTag,
       tag: tag,
-      notes: '${j['body'] ?? ''}'.trim(),
-      pageUrl: '${j['html_url'] ?? AppConfig.releasesUrl}',
-      publishedAt: DateTime.tryParse('${j['published_at'] ?? ''}'),
+      notes: (json['body'] ?? '').toString().trim(),
+      pageUrl: (json['html_url'] ?? AppConfig.releasesUrl).toString(),
+      publishedAt: DateTime.tryParse((json['published_at'] ?? '').toString()),
       apkUrl: apkUrl,
       apkName: apkName,
       apkSha256: apkSha,
       apkSize: apkSize,
       ipaUrl: ipaUrl,
       ipaName: ipaName,
+      ipaSha256: ipaSha,
+      ipaSize: ipaSize,
+      isPrerelease: json['prerelease'] == true || (parsedTag?.isPrerelease ?? false),
     );
   }
 
@@ -174,6 +274,62 @@ class UpdateService {
       throw const UpdateException('Ce fichier n\'est pas signé par la même clé que votre Strasse : installation refusée.');
     }
     return file.path;
+  }
+
+  /// Télécharge l'IPA dans Documents/Updates et le rend accessible via Fichiers sur iOS.
+  /// La taille et l'empreinte SHA-256 sont vérifiées lorsqu'elles sont publiées par GitHub.
+  /// L'application ne tente jamais d'installer automatiquement l'IPA.
+  Future<String> downloadIpa(
+    AppRelease release, {
+    void Function(double)? onProgress,
+    CancelToken? cancel,
+  }) async {
+    final url = release.ipaUrl;
+    if (url == null) {
+      throw const UpdateException('Cette version ne contient pas de fichier IPA.');
+    }
+
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory(documents.path + '/Updates');
+    await directory.create(recursive: true);
+
+    final safeVersion = release.version.replaceAll(RegExp(r'[^0-9A-Za-z.+_-]'), '_');
+    final file = File(directory.path + '/Strasse-' + safeVersion + '.ipa');
+    if (await file.exists()) await file.delete();
+
+    try {
+      await _dio.download(
+        url,
+        file.path,
+        cancelToken: cancel,
+        options: Options(receiveTimeout: const Duration(minutes: 10)),
+        onReceiveProgress: (received, total) {
+          if (total > 0) onProgress?.call(received / total);
+        },
+      );
+
+      if (release.ipaSize != null && await file.length() != release.ipaSize) {
+        throw const UpdateException('Fichier IPA incomplet : relancez le téléchargement.');
+      }
+
+      if (release.ipaSha256 != null) {
+        final digest = await sha256.bind(file.openRead()).first;
+        if (digest.toString() != release.ipaSha256) {
+          throw const UpdateException('Empreinte SHA-256 incorrecte : le fichier IPA a été supprimé.');
+        }
+      }
+
+      return file.path;
+    } on DioException catch (error) {
+      if (await file.exists()) await file.delete();
+      if (CancelToken.isCancel(error)) {
+        throw const UpdateException('Téléchargement annulé.');
+      }
+      throw UpdateException(Failure.fromDio(error).message);
+    } catch (_) {
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
   }
 
   Future<void> install(String path) async {

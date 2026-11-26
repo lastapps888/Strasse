@@ -9,6 +9,7 @@ import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/location/location_service.dart';
 import 'package:strasse/features/navigation/navigation_engine.dart';
 import 'package:strasse/features/voice/voice_service.dart';
+import 'package:strasse/features/widgets/navigation_widget_sync.dart';
 
 /// Paramètres d'une session de guidage. Comparés par identité : une session = une instance.
 class NavArgs {
@@ -109,6 +110,8 @@ class NavigationController extends StateNotifier<NavState> {
   DateTime _lastFixAt = DateTime.now();
   DateTime _lastRerouteTry = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastTrafficRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastHomeWidgetSync = DateTime.fromMillisecondsSinceEpoch(0);
+  int _lastHomeWidgetManeuver = -2;
   Timer? _watchdog;
   bool _rerouting = false;
   bool _finished = false;
@@ -126,6 +129,7 @@ class NavigationController extends StateNotifier<NavState> {
     await _voice.init();
     await _voice.configure(enabled: s.voiceEnabled, voiceName: s.voiceName, volume: s.voiceVolume, rate: s.voiceRate);
     state = state.copyWith(muted: !s.voiceEnabled);
+    _syncHomeWidget(force: true);
     if (s.keepScreenOn) {
       try {
         await WakelockPlus.enable();
@@ -136,6 +140,43 @@ class NavigationController extends StateNotifier<NavState> {
     _watchdog = Timer.periodic(const Duration(seconds: 3), (_) => _checkGps());
     final fix = _ref.read(locationControllerProvider).fix;
     if (fix != null) onFix(fix);
+  }
+
+  void _syncHomeWidget({bool force = false}) {
+    final now = DateTime.now();
+    final maneuverIndex = state.update?.nextManeuverIndex ?? -1;
+    if (!force &&
+        maneuverIndex == _lastHomeWidgetManeuver &&
+        now.difference(_lastHomeWidgetSync).inMinutes < 5) {
+      return;
+    }
+
+    _lastHomeWidgetSync = now;
+    _lastHomeWidgetManeuver = maneuverIndex;
+
+    final update = state.update;
+    final units = _ref.read(settingsProvider).units;
+    final status = switch (state.phase) {
+      NavPhase.running => state.gpsLost
+          ? tr('Signal GPS perdu')
+          : state.imprecise
+              ? tr('Précision GPS faible')
+              : tr('Navigation en cours'),
+      NavPhase.rerouting => tr('Recalcul de l’itinéraire'),
+      NavPhase.arrived => tr('Vous êtes arrivé'),
+      NavPhase.stopped => tr('Navigation terminée'),
+    };
+
+    unawaited(
+      NavigationWidgetSync.update(
+        status: status,
+        destination: args.destination.title,
+        eta: update == null ? '—' : formatEta(now, update.remainingS),
+        nextTurn: state.nextManeuver?.instruction ?? tr('En attente du signal GPS'),
+        distanceToTurn: update == null ? '—' : formatDistance(update.distanceToNextM, units),
+        remainingDistance: update == null ? '—' : formatDistance(update.remainingM, units),
+      ),
+    );
   }
 
   Future<void> _saveSession() async {
@@ -164,12 +205,14 @@ class NavigationController extends StateNotifier<NavState> {
     final lost = DateTime.now().difference(_lastFixAt).inSeconds > 10;
     if (lost && !state.gpsLost) {
       state = state.copyWith(gpsLost: true, message: 'Signal GPS perdu. Le guidage reprendra dès le retour du signal.');
+      _syncHomeWidget(force: true);
       if (!_gpsLostAnnounced) {
         _gpsLostAnnounced = true;
         _say('Signal GPS perdu.');
       }
     } else if (!lost && state.gpsLost) {
       state = state.copyWith(gpsLost: false, clearMessage: true);
+      _syncHomeWidget(force: true);
       _gpsLostAnnounced = false;
     }
   }
@@ -197,6 +240,7 @@ class NavigationController extends StateNotifier<NavState> {
       message: imprecise ? 'Précision GPS faible (±${fix.accuracyM.round()} m) : le guidage peut être décalé.' : null,
       clearMessage: !imprecise && transient && !(u.offRoute && (msg?.startsWith('Recalcul') ?? false)),
     );
+    _syncHomeWidget();
 
     for (final line in u.speech) {
       _say(line);
@@ -224,6 +268,7 @@ class NavigationController extends StateNotifier<NavState> {
     _rerouting = true;
     _lastRerouteTry = DateTime.now();
     state = state.copyWith(phase: NavPhase.rerouting, message: 'Recalcul de l\'itinéraire…');
+    _syncHomeWidget(force: true);
     try {
       // Étapes restantes : celles dont l'indice dans la polyligne est devant nous.
       final seg = state.update?.currentSegment ?? 0;
@@ -284,6 +329,7 @@ class NavigationController extends StateNotifier<NavState> {
   Future<void> _arrive() async {
     if (_finished) return;
     state = state.copyWith(phase: NavPhase.arrived, clearMessage: true);
+    _syncHomeWidget(force: true);
     await _finish(completed: true);
     if (_ref.read(settingsProvider).notifyTrips) {
       await _ref.read(notificationsProvider).notifyTripEvent('Trajet terminé', 'Vous êtes arrivé à ${args.destination.title}.');
@@ -294,6 +340,7 @@ class NavigationController extends StateNotifier<NavState> {
   Future<void> stop() async {
     if (_finished) return;
     state = state.copyWith(phase: NavPhase.stopped);
+    _syncHomeWidget(force: true);
     await _finish(completed: false);
   }
 

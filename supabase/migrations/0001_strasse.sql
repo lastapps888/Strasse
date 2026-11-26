@@ -314,4 +314,7 @@ grant execute on function public.delete_my_account() to authenticated;
 grant execute on function public.reports_in_bbox(double precision, double precision, double precision, double precision) to anon, authenticated;
 grant execute on function public.server_time() to anon, authenticated;
 
+-- Force PostgREST à recharger les tables et fonctions créées par cette migration.
+notify pgrst, 'reload schema';
+
 grant select, insert, update, delete on public.sync_items to authenticated;

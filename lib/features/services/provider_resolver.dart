@@ -85,6 +85,7 @@ class ProviderResolver {
         description: 'Adresse fournie à la compilation (config/env.json).',
         baseUrl: fromBuild,
         adapter: _buildTimeAdapter(c),
+        fallbackGroup: ProviderCatalog.recommendedFor(c).fallbackGroup,
         custom: true,
       );
     }
@@ -108,6 +109,8 @@ class ProviderResolver {
         return config.openTripMapKey.trim();
       case 'spotify.clientId':
         return config.spotifyClientId.trim();
+      case 'google-places.apiKey':
+        return config.googlePlacesApiKey.trim();
     }
     return '';
   }
@@ -140,12 +143,35 @@ class ProviderResolver {
     ];
   }
 
-  /// Source cartographique : style prêt à l'emploi (URL) ou tuiles vectorielles + polices pour le style généré par Strasse.
-  MapSourceConfig mapSource() {
-    final tiles = selected(ServiceCategory.tiles);
+  /// Fournisseurs cartographiques à essayer, dans l'ordre : sélection, fournisseur direct
+  /// OpenFreeMap, puis style indépendant VersaTiles. Les styles OpenFreeMap Liberty,
+  /// Bright et Positron ne constituent pas des secours indépendants entre eux.
+  List<ServiceProvider> mapCandidates() {
+    final selectedProvider = selected(ServiceCategory.tiles);
+    final ordered = <ServiceProvider>[selectedProvider];
+    if (settings.autoFallback) {
+      for (final id in const ['openfreemap', 'versatiles-demo']) {
+        final fallback = _byId(ServiceCategory.tiles, id);
+        if (fallback != null && fallback.id != selectedProvider.id) ordered.add(fallback);
+      }
+    }
+    final seen = <String>{};
+    return [
+      for (final provider in ordered)
+        if (urlOf(provider).trim().isNotEmpty &&
+            (provider.adapter == 'styleurl' || provider.adapter == 'tilejson') &&
+            seen.add('${provider.adapter}|${normalize(urlOf(provider))}'))
+          provider,
+    ];
+  }
+
+  /// Source cartographique : style prêt à l'emploi (URL) ou tuiles vectorielles + polices Strasse.
+  MapSourceConfig mapSource({ServiceProvider? provider}) {
+    final tiles = provider ?? selected(ServiceCategory.tiles);
     final tilesUrl = normalize(urlOf(tiles));
     if (tiles.adapter == 'styleurl') return MapSourceConfig(tilesUrl: '', glyphsUrl: '', styleUrl: tilesUrl);
-    return MapSourceConfig(tilesUrl: tilesUrl, glyphsUrl: url(ServiceCategory.glyphs));
+    if (tiles.adapter == 'tilejson') return MapSourceConfig(tilesUrl: tilesUrl, glyphsUrl: url(ServiceCategory.glyphs));
+    return const MapSourceConfig(tilesUrl: '', glyphsUrl: '');
   }
 
   static String normalize(String u) {

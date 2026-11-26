@@ -373,8 +373,9 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choisir la zone')),
-      body: Column(
-        children: [
+      body: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
           Expanded(
             child: LayoutBuilder(
               builder: (context, box) {
@@ -413,8 +414,12 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
               },
             ),
           ),
-          Material(
-            color: context.sc.panel,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.58),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Material(
+                color: context.sc.panel,
             elevation: 12,
             child: Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + padding.bottom),
@@ -422,7 +427,14 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Déplacez et zoomez la carte, puis tirez les poignées du cadre pour l\'étirer dans la forme voulue (jusqu\'à 1 000 × 1 000 km).', style: TextStyle(fontSize: 13)),
+                  const Text('Déplacez et zoomez la carte, puis tirez les poignées du cadre pour l\'étirer dans la forme voulue.', style: TextStyle(fontSize: 13)),
+                  const SizedBox(height: 6),
+                  const InfoBanner(
+                    icon: Icons.info_outline_rounded,
+                    tone: BannerTone.info,
+                    compact: true,
+                    message: 'Avec OpenFreeMap, chaque téléchargement est limité à 3 000 tuiles et 50 Mo. Strasse ajuste automatiquement le zoom ; pour couvrir une plus grande zone, créez plusieurs zones distinctes.',
+                  ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     value: _level,
@@ -453,8 +465,11 @@ class _RegionPickerPageState extends ConsumerState<RegionPickerPage> {
                 ],
               ),
             ),
+              ),
+            ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

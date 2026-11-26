@@ -14,6 +14,7 @@ import 'package:strasse/domain/domain.dart';
 import 'package:strasse/features/location/location_prompt.dart';
 import 'package:strasse/features/location/location_service.dart';
 import 'package:strasse/features/map/strasse_map.dart';
+import 'package:strasse/features/map/poi_badges.dart';
 import 'package:strasse/features/places/place_sheet.dart';
 import 'package:strasse/features/places/poi_sheet.dart';
 import 'package:strasse/features/routing/route_preview_page.dart';
@@ -23,6 +24,7 @@ import 'package:strasse/features/traffic/report_sheet.dart';
 import 'package:strasse/features/traffic/traffic_controller.dart';
 import 'package:strasse/features/transit/transit_sheets.dart';
 import 'package:strasse/features/transit/transit_style.dart';
+import 'package:strasse/features/widgets/navigation_widget_sync.dart';
 
 enum FollowMode { off, follow, heading }
 
@@ -42,16 +44,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   CancelToken? _reverseCancel;
   String? _resultsLabel;
   Timer? _idleDebounce;
+  Timer? _widgetSnapshotDebounce;
+  DateTime _lastWidgetSnapshot = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _widgetSnapshotBusy = false;
   double _bearing = 0;
   CancelToken? _transitCancel;
   bool _transitErrorShown = false;
-  bool _transitZoomShown = false;
   CancelToken? _poiCancel;
   bool _poiErrorShown = false;
 
   @override
   void dispose() {
     _idleDebounce?.cancel();
+    _widgetSnapshotDebounce?.cancel();
     _reverseCancel?.cancel();
     _transitCancel?.cancel();
     _poiCancel?.cancel();
@@ -117,13 +122,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (res.zoomHint) {
       c.setExtraLines(const []);
       c.setTransitStops(const []);
-      if (!_transitZoomShown) {
-        _transitZoomShown = true;
-        showMessage(context, 'Zoomez sur la carte pour afficher les lignes et arrêts de transport en commun.');
-      }
       return;
     }
-    _transitZoomShown = false;
     c.setExtraLines(TransitOverlay.polylines(res.lines));
     c.setTransitStops(TransitOverlay.pins(res.stops, (s) => showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => StopSheet(stop: s))));
     if (res.error != null && !_transitErrorShown) {
@@ -167,12 +167,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!mounted || token.isCancelled) return;
     c.setPoiPins([
       for (final p in all.take(150))
-        MapPin(id: 'poi:${p.id}', point: p.point, color: _poiColors[p.id] ?? Colors.teal, radius: 7, onTap: () => _openPoi(p)),
+        MapPin(
+          id: 'poi:${p.id}',
+          point: p.point,
+          color: _poiColors[p.id] ?? Colors.teal,
+          radius: 7,
+          iconImage: PoiBadges.forPoi(p.kind.name, p.place.category).image,
+          onTap: () => _openPoi(p),
+        ),
     ]);
     if (error != null && all.isEmpty && !_poiErrorShown) {
       final f = toFailure(error);
-      if (f.code != 'zoom_in') _poiErrorShown = true;
-      showMessage(context, f.message);
+      // Un niveau de zoom insuffisant est un état normal de la carte, pas une erreur à notifier en boucle.
+      if (f.code != 'zoom_in') {
+        _poiErrorShown = true;
+        showMessage(context, f.message);
+      }
     }
   }
 
@@ -285,6 +295,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (ref.read(settingsProvider).showTrafficEvents) ref.read(trafficProvider.notifier).refresh(b);
       _loadTransit();
       _loadPois();
+      _scheduleWidgetMapPreview();
+    });
+  }
+
+  /// Met à jour l'image native du widget après un déplacement de carte, avec temporisation
+  /// pour éviter des captures et des écritures dans le groupe partagé à chaque frame.
+  void _scheduleWidgetMapPreview() {
+    _widgetSnapshotDebounce?.cancel();
+    _widgetSnapshotDebounce = Timer(const Duration(seconds: 3), () async {
+      if (!mounted || _widgetSnapshotBusy || DateTime.now().difference(_lastWidgetSnapshot) < const Duration(seconds: 30)) return;
+      final map = _map;
+      if (map == null || !map.isReady) return;
+      _widgetSnapshotBusy = true;
+      try {
+        final png = await map.takeWidgetSnapshot();
+        if (!mounted || png == null || png.isEmpty) return;
+        final config = ref.read(providerResolverProvider).config;
+        final attribution = [
+          AppConfig.osmAttribution,
+          if (config.tilesAttribution.trim().isNotEmpty) config.tilesAttribution.trim(),
+        ].join(' · ');
+        await NavigationWidgetSync.updateMapPreview(png, attribution: attribution);
+        _lastWidgetSnapshot = DateTime.now();
+      } finally {
+        _widgetSnapshotBusy = false;
+      }
     });
   }
 
@@ -303,6 +339,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     ref.listen<LocationState>(locationControllerProvider, (_, n) => _pushUser(n));
     ref.listen<TrafficState>(trafficProvider, (_, n) => _pushEvents(n));
     ref.listen<List<Place>>(mapResultsProvider, (_, n) => _pushResults(n));
+    ref.listen<int>(homeWidgetSearchRequestProvider, (previous, next) {
+      if (previous == null || next == previous) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openSearch();
+      });
+    });
     ref.listen<AppSettings>(settingsProvider, (a, b) {
       if (a?.showTrafficEvents != b.showTrafficEvents) _pushEvents(ref.read(trafficProvider));
       if (a?.showTransit != b.showTransit) _loadTransit();
@@ -320,7 +362,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final padding = MediaQuery.paddingOf(context);
     final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape && MediaQuery.sizeOf(context).width >= 560;
     // En paysage, la barre d'onglets est verticale : plus de bande réservée en bas.
-    final navBarSpace = (isLandscape ? 4 : 76) + padding.bottom;
+    final navBarSpace = isLandscape ? 4 + padding.bottom : 8;
     final sheetOpen = _selected != null;
 
     return Stack(
@@ -369,7 +411,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _RoundButton(icon: Icons.layers_rounded, tooltip: tr('Couches de la carte'), onTap: () => showModalBottomSheet<void>(context: context, isScrollControlled: true, showDragHandle: true, constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5), builder: (_) => const _LayersSheet())),
+                  _RoundButton(
+                    icon: Icons.layers_rounded,
+                    tooltip: tr('Couches de la carte'),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) => DraggableScrollableSheet(
+                        expand: false,
+                        initialChildSize: 0.6,
+                        minChildSize: 0.35,
+                        maxChildSize: 0.9,
+                        builder: (context, scrollController) => _LayersSheet(scrollController: scrollController),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               if (!online)
@@ -466,27 +523,50 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         if (_selected != null)
           Positioned(
+            top: 0,
             left: 12,
             right: isLandscape ? MediaQuery.sizeOf(context).width * 0.45 : 12,
-            bottom: 12 + (MediaQuery.paddingOf(context).bottom > 0 ? 0 : 0),
-            child: Material(
-              color: context.sc.panel,
-              elevation: 10,
-              borderRadius: BorderRadius.circular(24),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (isLandscape ? 0.8 : 0.55)),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: PlaceSheet(
-                      place: _selected!,
-                      loading: _selectedLoading,
-                      distanceFrom: loc.fix?.point,
-                      onClose: _clearSelection,
-                      onRoute: () => _route(_selected!),
+            bottom: 0,
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.5,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              snap: true,
+              snapSizes: const [0.5, 0.9],
+              builder: (sheetContext, scrollController) => Material(
+                color: context.sc.panel,
+                elevation: 10,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 2),
+                      child: Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: context.cs.onSurfaceVariant.withOpacity(0.45),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: PlaceSheet(
+                            place: _selected!,
+                            loading: _selectedLoading,
+                            distanceFrom: loc.fix?.point,
+                            onClose: _clearSelection,
+                            onRoute: () => _route(_selected!),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -525,14 +605,19 @@ class _RoundButton extends StatelessWidget {
 
 /// Couches et style de carte.
 class _LayersSheet extends ConsumerWidget {
-  const _LayersSheet();
+  const _LayersSheet({this.scrollController});
+
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final ctrl = ref.read(settingsProvider.notifier);
+    final mapSource = ref.watch(providerResolverProvider).mapSource();
+    final satelliteAvailable = mapSource.available;
     return SafeArea(
       child: SingleChildScrollView(
+        controller: scrollController,
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -551,6 +636,12 @@ class _LayersSheet extends ConsumerWidget {
             ),
             const SectionTitle('Détails'),
             SwitchRow(title: 'Bâtiments', value: s.showBuildings, onChanged: (v) => ctrl.update((x) => x.copyWith(showBuildings: v))),
+            SwitchRow(
+              title: 'Satellite',
+              subtitle: satelliteAvailable ? 'Imagerie mondiale Sentinel-2 (2016–2017) et orthophotos IGN en France' : 'Aucun fournisseur cartographique disponible',
+              value: satelliteAvailable && s.showSatellite,
+              onChanged: satelliteAvailable ? (v) => ctrl.update((x) => x.copyWith(showSatellite: v)) : null,
+            ),
             SwitchRow(title: 'Lieux d\'intérêt', value: s.showPoi, onChanged: (v) => ctrl.update((x) => x.copyWith(showPoi: v))),
             SwitchRow(title: 'Transports en commun', subtitle: 'Lignes, arrêts et horaires ; zoomez pour les voir', value: s.showTransit, onChanged: (v) => ctrl.update((x) => x.copyWith(showTransit: v))),
             SwitchRow(title: 'Hôtels', subtitle: 'Zoomez pour les afficher', value: s.showHotels, onChanged: (v) => ctrl.update((x) => x.copyWith(showHotels: v))),

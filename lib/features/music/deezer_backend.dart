@@ -38,17 +38,12 @@ class DeezerBackend implements MusicBackend {
   @override
   Future<String?> unavailableReason() async => null;
 
-  /// Aucune authentification : « se connecter » vérifie seulement que l'API répond.
+  /// The public API does not create a Deezer account session. Catalogue access needs no connection.
+  /// Fail explicitly instead of presenting an HTTP reachability check as account authentication.
   @override
   Future<bool> connect() async {
-    try {
-      await _get('/chart/0/tracks', {'limit': 1});
-      _connected = true;
-    } on MusicException {
-      _connected = false;
-      rethrow;
-    }
-    return _connected;
+    _connected = false;
+    throw const MusicException('Account sign-in with Deezer is not available. The public catalogue and 30-second previews remain accessible without an account.');
   }
 
   @override
@@ -157,10 +152,11 @@ class DeezerBackend implements MusicBackend {
   Future<List<MusicTrack>> chartTracks() async => _tracks((await _get('/chart/0/tracks', {'limit': 30}))['data']);
 
   @override
-  Future<void> playTrack(MusicTrack t, {List<MusicTrack> queue = const []}) {
+  Future<void> playTrack(MusicTrack t, {List<MusicTrack> queue = const []}) async {
     final list = queue.isEmpty ? [t] : queue;
     final i = list.indexWhere((x) => x.id == t.id);
-    return engine.playQueue(list, i < 0 ? 0 : i);
+    await engine.playQueue(list, i < 0 ? 0 : i);
+    _connected = true;
   }
 
   @override
@@ -168,6 +164,7 @@ class DeezerBackend implements MusicBackend {
     final tracks = await tracksOf(c);
     if (tracks.isEmpty) throw const MusicException('Cette sélection ne contient aucun extrait lisible.');
     await engine.playQueue(tracks, 0);
+    _connected = true;
   }
 
   @override

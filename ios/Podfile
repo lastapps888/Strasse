@@ -1,5 +1,5 @@
-# Cible iOS 14 minimum (file_picker >=12).
-platform :ios, '14.0'
+ # Cible minimale iOS 15 requise par l'environnement Xcode 27 utilisé en CI.
+platform :ios, '15.0'
 
 # Désactive les statistiques CocoaPods : aucune télémétrie.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

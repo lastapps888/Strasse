@@ -2,9 +2,9 @@ name: Flutter checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta6-work]
   pull_request:
-    branches: [main]
+    branches: [main, beta6-work]
   workflow_dispatch:
 
 permissions:
@@ -24,14 +24,28 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Cloudflare Worker
+        run: npm test
+        working-directory: server/cloudflare
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
-        run: flutter pub get
+      - name: Test native platform preparation
+        run: |
+          python3 -m py_compile tool/patch_platforms.py
+          python3 -m unittest discover -s tool -p 'test_*.py'
+
+      - name: Prepare native projects and generate home widgets
+        run: bash tool/ci_prepare.sh all
 
       - name: Analyze Dart code
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -58,11 +72,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
-        run: flutter pub get
-
-      - name: Configure native project
-        run: python3 tool/patch_platforms.py
+      - name: Prepare Android and iOS native projects
+        run: bash tool/ci_prepare.sh android
 
       - name: Build release APK
         run: flutter build apk --release
@@ -72,4 +83,74 @@ jobs:
         with:
           name: strasse-android-apk
           path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+  changed-files-archive:
+    name: Archive modified source files
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create archive with original directory structure
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          base = os.environ["PR_BASE_SHA"]
+          raw_paths = subprocess.check_output(
+              ["git", "diff", "--name-only", "--diff-filter=ACMRT", "-z", f"{base}...HEAD"]
+          )
+          paths = [Path(item.decode("utf-8")) for item in raw_paths.split(b"\0") if item]
+          archive = Path("build/Strasse-1.0.0-beta6-modified-files.zip")
+          archive.parent.mkdir(parents=True, exist_ok=True)
+          included = []
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+              for path in paths:
+                  if path.is_file():
+                      output.write(path, arcname=path.as_posix())
+                      included.append(path.as_posix())
+          if not included:
+              raise SystemExit("No modified source files were found for the archive.")
+          print(f"Archived {len(included)} modified source files:")
+          for path in included:
+              print(path)
+          PY
+
+      - name: Upload modified source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Strasse-1.0.0-beta6-modified-files
+          path: build/Strasse-1.0.0-beta6-modified-files.zip
+          if-no-files-found: error
+
+  ios-release:
+    name: iOS release compilation (unsigned)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build unsigned iOS package
+        run: bash tool/ci_build_ios.sh unsigned
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: strasse-ios-unsigned-ipa
+          path: build/ios/ipa-unsigned/Strasse-unsigned.ipa
           if-no-files-found: error

@@ -20,7 +20,7 @@ class ProviderTester {
   final Dio _dio;
 
   /// Vrai si un test réseau a un sens pour ce fournisseur.
-  static bool canTest(ServiceProvider p) => p.kind != ProviderKind.link;
+  static bool canTest(ServiceProvider p) => p.kind != ProviderKind.link && p.adapter != 'google-places';
 
   Future<ProviderTestResult> test(ServiceProvider p) async {
     final sw = Stopwatch()..start();
@@ -67,6 +67,31 @@ class ProviderTester {
         final text = '${r.data}';
         if (_ok(r) && (text.contains('slots') || text.contains('Connected as') || text.contains('Rate limit'))) return (true, 'Overpass opérationnel.');
         return (false, 'Réponse inattendue (${r.statusCode}) : pas de /status Overpass valide.');
+      case 'overpass-poi':
+        final endpoints = [
+          for (final candidate in resolver.candidates(ServiceCategory.roadData))
+            ProviderResolver.normalize(resolver.urlOf(candidate)),
+        ].where((url) => url.isNotEmpty).toSet().toList();
+        if (endpoints.isEmpty) return (false, 'Aucun serveur Overpass configuré dans « Données routières ».');
+        const query = '[out:json][timeout:12];nwr(around:100,48.8566,2.3522);out count;';
+        final failures = <String>[];
+        for (final endpoint in endpoints) {
+          try {
+            final poiResponse = await _dio.post<Object>(
+              endpoint,
+              data: 'data=${Uri.encodeQueryComponent(query)}',
+              options: Options(contentType: Headers.formUrlEncodedContentType),
+            );
+            final payload = _json(poiResponse.data);
+            if (_ok(poiResponse) && payload is Map && payload['elements'] is List) {
+              return (true, 'Overpass opérationnel : un serveur principal ou de secours répond correctement.');
+            }
+            failures.add('${Uri.parse(endpoint).host} : HTTP ${poiResponse.statusCode}');
+          } on DioException catch (error) {
+            failures.add('${Uri.parse(endpoint).host} : ${Failure.fromDio(error).message}');
+          }
+        }
+        return (false, 'Aucun serveur Overpass ne répond correctement. ${failures.join(' ; ')}');
       case 'formsubmit':
         // Pas d'envoi de test (il enverrait un vrai message) : on vérifie seulement que le service répond.
         final r = await _dio.get<Object>(base);
@@ -120,8 +145,61 @@ class ProviderTester {
         final url = ProviderResolver.normalize(resolver.credential(p, 'url'));
         final key = resolver.credential(p, 'anonKey');
         if (url.isEmpty || key.isEmpty) return (false, 'Adresse du projet et clé publique à renseigner (bouton « Identifiants »).');
-        final r = await _dio.get<Object>('$url/auth/v1/health', options: Options(headers: {'apikey': key}));
-        return _ok(r) ? (true, 'Projet Supabase joignable.') : (false, 'Réponse ${r.statusCode} : projet en pause, adresse ou clé incorrecte.');
+
+        // L'endpoint Auth seul prouve uniquement que le projet répond. Il ne vérifie pas que
+        // l'API REST et le schéma SQL nécessaires à la synchronisation Strasse sont déployés.
+        final health = await _dio.get<Object>(
+          '$url/auth/v1/health',
+          options: Options(headers: {'apikey': key}),
+        );
+        if (!_ok(health)) {
+          final status = health.statusCode ?? 0;
+          if (status == 401 || status == 403) {
+            return (false, 'Supabase répond, mais refuse la clé publique. Vérifiez la clé publishable du projet dans Réglages > Services.');
+          }
+          if (status == 404) {
+            return (false, 'Endpoint Auth Supabase introuvable (404). Vérifiez l’URL du projet et l’activation de l’API Auth.');
+          }
+          return (false, 'L’endpoint Auth Supabase répond avec HTTP $status. Vérifiez l’état du projet dans Supabase.');
+        }
+
+        // server_time est une fonction de la migration Strasse, explicitement exécutable par anon
+        // et authenticated. On vérifie donc réellement que PostgREST a chargé le schéma attendu.
+        final schema = await _dio.post<Object>(
+          '$url/rest/v1/rpc/server_time',
+          data: const <String, dynamic>{},
+          options: Options(
+            headers: {
+              'apikey': key,
+              Headers.contentTypeHeader: Headers.jsonContentType,
+            },
+          ),
+        );
+        if (!_ok(schema)) {
+          final status = schema.statusCode ?? 0;
+          final body = _json(schema.data);
+          final code = body is Map ? '${body['code'] ?? body['error_code'] ?? ''}' : '';
+          final detail = body is Map ? '${body['message'] ?? body['msg'] ?? ''}' : '';
+          if (status == 404 || code.startsWith('PGRST') || detail.toLowerCase().contains('server_time')) {
+            return (
+              false,
+              'Le projet Supabase répond, mais le schéma Strasse n’est pas publié dans l’API REST. Exécutez supabase/migrations/0001_strasse.sql dans le SQL Editor, puis rechargez le schéma PostgREST.',
+            );
+          }
+          if (status == 401 || status == 403) {
+            return (false, 'L’API Auth répond, mais l’API REST refuse l’accès à server_time (HTTP $status). Vérifiez les droits SQL et les grants de la migration Strasse.');
+          }
+          return (false, 'L’API REST Supabase répond avec HTTP $status pendant le contrôle du schéma. ${detail.isEmpty ? 'Vérifiez la migration Strasse.' : detail}');
+        }
+
+        final rawTime = schema.data;
+        final serverTime = rawTime is String
+            ? (DateTime.tryParse(rawTime) != null ? rawTime : _json(rawTime))
+            : _json(rawTime);
+        if (serverTime is! String || DateTime.tryParse(serverTime) == null) {
+          return (false, 'L’API REST répond, mais server_time ne renvoie pas un horodatage valide. Vérifiez la migration Strasse.');
+        }
+        return (true, 'Supabase opérationnel : Auth, clé publique, API REST et schéma Strasse vérifiés.');
       case 'opentripmap':
         final key = resolver.credential(p, 'apiKey');
         if (key.isEmpty) return (false, 'Clé API à renseigner (bouton « Identifiants »).');

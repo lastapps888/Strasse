@@ -475,10 +475,10 @@ class MapStyleBuilder {
       layers.removeWhere((l) => flat.contains(l['id']));
       sources['sat-world'] = {
         'type': 'raster',
-        'tiles': ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg'],
+        'tiles': ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'],
         'tileSize': 256,
         'maxzoom': 13,
-        'attribution': 'Sentinel-2 cloudless – s2maps.eu par EOX IT Services GmbH (Copernicus Sentinel 2024, CC BY-NC-SA 4.0)',
+        'attribution': 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)',
       };
       sources['sat-fr'] = {
         'type': 'raster',

@@ -41,6 +41,7 @@ import 'package:strasse/features/services/provider_models.dart';
 import 'package:strasse/features/services/credentials_store.dart';
 import 'package:strasse/data/providers/poi_service.dart';
 import 'package:strasse/data/providers/place_info_service.dart';
+import 'package:strasse/data/providers/google_places_reviews_client.dart';
 import 'package:strasse/data/providers/strasse_cloud_backend.dart';
 import 'package:strasse/data/providers/search_ranking.dart';
 import 'package:strasse/features/navigation/speed_cameras.dart';
@@ -74,7 +75,7 @@ final offlineRepositoryProvider = Provider<OfflineRepository>((ref) => OfflineRe
 /// Vrai si l'appareil a une connexion (Wi-Fi, mobile…). Ne garantit pas l'accès à un serveur donné.
 final onlineProvider = StreamProvider<bool>((ref) async* {
   final c = Connectivity();
-  bool online(List<ConnectivityResult> r) => r.any((e) => e != ConnectivityResult.none);
+  bool online(List<ConnectivityResult> results) => results.any((result) => result != ConnectivityResult.none);
   try {
     yield online(await c.checkConnectivity());
   } catch (_) {
@@ -107,6 +108,16 @@ final placeInfoProvider = FutureProvider.autoDispose.family<PlaceInfo, (String, 
   final token = CancelToken();
   ref.onDispose(token.cancel);
   return ref.watch(placeInfoServiceProvider).lookup(Place(id: 'info', name: k.$1, point: GeoPoint(k.$2, k.$3)), cancel: token);
+});
+
+/// Notes et avis Google Maps facultatifs ; aucune requête n'est faite sans clé API renseignée.
+final placeReviewsProvider = FutureProvider.autoDispose.family<GooglePlaceReviews?, (String, double, double)>((ref, k) {
+  final resolver = ref.watch(providerResolverProvider);
+  final provider = resolver.selected(ServiceCategory.googlePlacesReviews);
+  final apiKey = resolver.credential(provider, 'apiKey');
+  if (apiKey.isEmpty) return null;
+  final place = Place(id: 'google-review', name: k.$1, point: GeoPoint(k.$2, k.$3));
+  return GooglePlacesReviewsClient(apiKey).forPlace(place);
 });
 
 final poiServiceProvider = Provider<PoiService>((ref) {

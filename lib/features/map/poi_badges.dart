@@ -41,10 +41,24 @@ class PoiBadges {
 
   static PoiBadge forClass(String? c) {
     if (c == null) return other;
+    final normalized = c.trim().toLowerCase().replaceAll(' ', '_');
     for (final b in all) {
-      if (b.classes.contains(c)) return b;
+      if (b.classes.contains(normalized)) return b;
     }
     return other;
+  }
+
+  /// Choisit un badge cohérent pour les POI OSM, même lorsque leur style de fond vient
+  /// d'un fournisseur tiers. Les catégories inconnues restent explicitement génériques.
+  static PoiBadge forPoi(String? kind, String? category) {
+    switch (kind?.trim().toLowerCase()) {
+      case 'hotel':
+      case 'lodging':
+        return forClass('hotel');
+      case 'restaurant':
+        return forClass('restaurant');
+    }
+    return forClass(category);
   }
 
   /// Expression MapLibre : `class` → nom de l'image du badge.

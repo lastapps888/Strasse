@@ -7,8 +7,10 @@ Chaque modification qui ne trouve pas son motif affiche un AVERTISSEMENT avec la
 """
 import glob
 import os
+import plistlib
 import re
 import shutil
+import subprocess
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -77,36 +79,86 @@ def patch_native_android():
 
 
 def patch_native_ios():
-    """AppDelegate.swift et déclaration des icônes alternatives dans le projet Xcode."""
+    """AppDelegate.swift et déclaration idempotente des icônes alternatives dans Xcode."""
     src = "platform_assets/native/AppDelegate.swift"
     if os.path.isdir("ios/Runner") and os.path.exists(src):
+        native_delegate = read(src)
+        required_handlers = ('case "status":', 'case "metadataForFile":')
+        missing_handlers = [handler for handler in required_handlers if handler not in native_delegate]
+        if missing_handlers:
+            raise RuntimeError(
+                "Le modèle platform_assets/native/AppDelegate.swift est incomplet : "
+                + ", ".join(missing_handlers)
+                + ". Refus de l'appliquer pour ne pas supprimer la restauration MusicKit "
+                "ou les métadonnées de musique locale."
+            )
         shutil.copy2(src, "ios/Runner/AppDelegate.swift")
-        print("AppDelegate.swift copié (changement d'icône, MusicKit).")
+        print("AppDelegate.swift copié (icônes, restauration MusicKit et métadonnées audio).")
+
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if not os.path.exists(pbx):
         return warn("ios/Runner.xcodeproj/project.pbxproj introuvable : lancer `flutter create --platforms=ios .` (tool/ci_prepare.sh le fait), puis ce script.")
+
     names = sorted(
         d[:-len(".appiconset")]
         for d in os.listdir("platform_assets/ios_assets")
         if d.startswith("AppIcon-") and d.endswith(".appiconset")
     )
+    if not names:
+        return warn("Aucun jeu d'icône alternative .appiconset trouvé dans platform_assets/ios_assets.")
+
     s = read(pbx)
-    if "ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" not in s:
-        line = 'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "%s";' % " ".join(names)
-        s, n = re.subn(
-            r"(\n(\s*)ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;)",
-            lambda m: m.group(1) + "\n" + m.group(2) + line,
+    alternate_value = '"%s"' % " ".join(names)
+    alternate_pattern = re.compile(
+        r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\s*=\s*[^;]*;",
+        re.M,
+    )
+    if alternate_pattern.search(s):
+        s = alternate_pattern.sub(
+            lambda m: f"{m.group('indent')}ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = {alternate_value};",
             s,
         )
-        s, n2 = re.subn(
-            r"(\n(\s*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = [^\n]*;)",
-            lambda m: m.group(1) + "\n" + m.group(2) + "ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;",
+    else:
+        anchor_pattern = re.compile(
+            r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_APPICON_NAME\s*=\s*AppIcon;",
+            re.M,
+        )
+        s, count = anchor_pattern.subn(
+            lambda m: (
+                m.group(0)
+                + "\n"
+                + m.group("indent")
+                + f"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = {alternate_value};"
+            ),
             s,
         )
-        write(pbx, s)
-        print(f"project.pbxproj : {len(names)} icônes alternatives déclarées dans {n} configuration(s).")
-        if n == 0:
-            warn("ASSETCATALOG_COMPILER_APPICON_NAME introuvable dans project.pbxproj : icônes alternatives non déclarées.")
+        if count == 0:
+            return warn("ASSETCATALOG_COMPILER_APPICON_NAME introuvable dans project.pbxproj : icônes alternatives non déclarées.")
+
+    # Apple/Xcode n'inclut pas nécessairement les jeux alternatifs dans le bundle sans ce réglage.
+    # L'appliquer à chaque configuration et le réparer même si la liste des icônes était déjà présente.
+    lines = s.splitlines(keepends=True)
+    normalized = []
+    for index, line in enumerate(lines):
+        normalized.append(line)
+        match = re.match(
+            r"^(?P<indent>[ \t]*)ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES\s*=\s*[^;]*;",
+            line,
+        )
+        if match:
+            following = lines[index + 1] if index + 1 < len(lines) else ""
+            if not re.match(
+                r"^[ \t]*ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS\s*=",
+                following,
+            ):
+                newline = "\r\n" if line.endswith("\r\n") else "\n"
+                normalized.append(
+                    f"{match.group('indent')}ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;{newline}"
+                )
+
+    s = "".join(normalized)
+    write(pbx, s)
+    print(f"project.pbxproj : {len(names)} icônes alternatives déclarées et incluses dans le bundle Xcode.")
 
 
 # ---------------------------------------------------------------- Android
@@ -205,6 +257,39 @@ def patch_info_plist():
         "<string>Strasse accède à votre bibliothèque Apple Music uniquement pour lire votre musique pendant le trajet. Rien n'est envoyé ailleurs.</string>",
     )
     s = plist_set(s, "LSApplicationQueriesSchemes", "<array>\n\t\t<string>spotify</string>\n\t\t<string>music</string>\n\t\t<string>deezer</string>\n\t</array>")
+    # Google Sign-In : identifiants OAuth iOS/Web et schéma de retour générés par Google Cloud.
+    # Les identifiants sont publics, mais ils sont propres au projet Google de l'éditeur.
+    youtube_ios_client_id = os.environ.get("STRASSE_YOUTUBE_IOS_CLIENT_ID", "").strip()
+    youtube_server_client_id = os.environ.get("STRASSE_YOUTUBE_SERVER_CLIENT_ID", "").strip()
+    youtube_reversed_client_id = os.environ.get("STRASSE_YOUTUBE_REVERSED_CLIENT_ID", "").strip()
+    if youtube_ios_client_id:
+        s = plist_set(s, "GIDClientID", f"<string>{youtube_ios_client_id}</string>")
+    if youtube_server_client_id:
+        s = plist_set(s, "GIDServerClientID", f"<string>{youtube_server_client_id}</string>")
+    # Google Sign-In et Spotify utilisent des schémas de retour distincts.
+    # Le schéma « strasse » doit exister même si Google OAuth n'est pas configuré.
+    plist_data = plistlib.loads(s.encode("utf-8"))
+    url_types = plist_data.get("CFBundleURLTypes", [])
+    if not isinstance(url_types, list):
+        url_types = []
+    required_schemes = ["strasse"]
+    if youtube_reversed_client_id:
+        required_schemes.append(youtube_reversed_client_id)
+    existing_schemes = {
+        scheme
+        for entry in url_types
+        if isinstance(entry, dict)
+        for scheme in entry.get("CFBundleURLSchemes", [])
+        if isinstance(scheme, str)
+    }
+    missing_schemes = [scheme for scheme in required_schemes if scheme not in existing_schemes]
+    if missing_schemes:
+        url_types.append({
+            "CFBundleTypeRole": "Editor",
+            "CFBundleURLSchemes": missing_schemes,
+        })
+    plist_data["CFBundleURLTypes"] = url_types
+    s = plistlib.dumps(plist_data, fmt=plistlib.FMT_XML, sort_keys=False).decode("utf-8")
     # Cycle de vie UIScene (Flutter 3.38+) : indispensable à l'enregistrement des canaux natifs (voir AppDelegate.swift).
     if "UIApplicationSceneManifest" not in s and "_UIApplicationSceneManifest" not in s:
         scene = (
@@ -218,7 +303,7 @@ def patch_info_plist():
         )
         s = plist_set(s, "UIApplicationSceneManifest", scene)
     write(path, s)
-    print("Info.plist configuré (nom, permission de localisation en français, arrière-plan, chiffrement).")
+    print("Info.plist configuré (permissions, Google Sign-In si configuré, arrière-plan et icônes).")
 
 
 def patch_podfile():
@@ -226,45 +311,45 @@ def patch_podfile():
     if not os.path.exists(path):
         return warn("Podfile introuvable.")
     s = read(path)
-    s2, n = re.subn(r"^\s*#?\s*platform :ios, '[^']*'", "platform :ios, '14.0'", s, count=1, flags=re.M)
+    s2, n = re.subn(r"^\s*#?\s*platform :ios, '[^']*'", "platform :ios, '15.0'", s, count=1, flags=re.M)
     if n == 0:
-        s2 = "platform :ios, '14.0'\n" + s
+        s2 = "platform :ios, '15.0'\n" + s
     write(path, s2)
 
-    # file_picker >=12 exige iOS 14 : aligner aussi la cible de l'application générée.
+    # Xcode 27 exige iOS 15 : garder le Podfile, Runner et Flutter.framework alignés.
     pbx = "ios/Runner.xcodeproj/project.pbxproj"
     if os.path.exists(pbx):
         project = read(pbx)
         project, count = re.subn(
             r"IPHONEOS_DEPLOYMENT_TARGET = [^;]+;",
-            "IPHONEOS_DEPLOYMENT_TARGET = 14.0;",
+            "IPHONEOS_DEPLOYMENT_TARGET = 15.0;",
             project,
         )
         if count:
             write(pbx, project)
-            print(f"project.pbxproj : cible iOS 14.0 appliquée ({count} réglages).")
+            print(f"project.pbxproj : cible iOS 15.0 appliquée ({count} réglages).")
         else:
-            warn("IPHONEOS_DEPLOYMENT_TARGET introuvable dans project.pbxproj : définir manuellement la cible iOS 14.0.")
+            warn("IPHONEOS_DEPLOYMENT_TARGET introuvable dans project.pbxproj : définir manuellement la cible iOS 15.0.")
     else:
-        warn("project.pbxproj absent : la cible iOS 14.0 devra être vérifiée après génération du projet Xcode.")
+        warn("project.pbxproj absent : la cible iOS 15.0 devra être vérifiée après génération du projet Xcode.")
 
     framework = "ios/Flutter/AppFrameworkInfo.plist"
     if os.path.exists(framework):
         info = read(framework)
         info, count = re.subn(
             r"(<key>MinimumOSVersion</key>\s*<string>)[^<]+(</string>)",
-            r"\g<1>14.0\g<2>",
+            r"\g<1>15.0\g<2>",
             info,
             count=1,
         )
         if count:
             write(framework, info)
         else:
-            warn("MinimumOSVersion introuvable dans AppFrameworkInfo.plist : vérifier manuellement la cible iOS 14.0.")
+            warn("MinimumOSVersion introuvable dans AppFrameworkInfo.plist : vérifier manuellement la cible iOS 15.0.")
     else:
-        warn("AppFrameworkInfo.plist introuvable : vérifier manuellement la cible iOS 14.0.")
+        warn("AppFrameworkInfo.plist introuvable : vérifier manuellement la cible iOS 15.0.")
 
-    print("Cible iOS 14.0 appliquée au Podfile et aux réglages natifs.")
+    print("Cible iOS 15.0 appliquée au Podfile et aux réglages natifs.")
 
 
 # ---------------------------------------------------------------- Divers
@@ -273,6 +358,15 @@ def remove_default_test():
     if os.path.exists(path) and "MyApp" in read(path):
         os.remove(path)
         print("Test par défaut de flutter create supprimé.")
+
+
+def generate_home_widgets():
+    """Génère les extensions WidgetKit et Android Glance depuis home_widget/*.dart."""
+    ios_project = "ios/Runner.xcodeproj/project.pbxproj"
+    if not os.path.isdir("android") or not os.path.isfile(ios_project):
+        return warn("Widgets natifs non générés : lancer `bash tool/ci_prepare.sh all` pour créer Android + Xcode et générer les deux extensions.")
+    print("Génération des widgets natifs WidgetKit / Android Glance…")
+    subprocess.run(["dart", "run", "home_widget_cli:home_widget", "generate"], cwd=ROOT, check=True)
 
 
 if __name__ == "__main__":
@@ -286,6 +380,7 @@ if __name__ == "__main__":
         patch_info_plist()
         patch_podfile()
     remove_default_test()
+    generate_home_widgets()
     if WARNINGS:
         print(f"\n{len(WARNINGS)} avertissement(s) : voir INSTALLATION.md pour les étapes manuelles.")
         sys.exit(0)

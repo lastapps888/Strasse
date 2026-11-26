@@ -6,8 +6,6 @@ import 'package:strasse/app/widgets/common.dart';
 import 'package:strasse/core/core.dart';
 import 'package:strasse/data/providers/providers.dart';
 import 'package:strasse/features/feedback/feedback_service.dart';
-import 'package:strasse/features/services/provider_models.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Écran « Envoyer un retour » : texte libre, envoi automatique par e-mail (titre « Feedback » + date du jour).
 class FeedbackPage extends ConsumerStatefulWidget {
@@ -35,12 +33,6 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
 
   FeedbackService _service() => FeedbackService(userAgent: ref.read(appConfigProvider).userAgent);
 
-  Future<void> _mailFallback() async {
-    final svc = _service();
-    final ok = await launchUrl(svc.mailto(_text.text, technical: _technical ? FeedbackService.technicalInfo() : null));
-    if (!ok && mounted) showMessage(context, 'Aucune application e-mail n\'a pu être ouverte sur cet appareil.');
-  }
-
   Future<void> _send() async {
     final problem = FeedbackService.validate(_text.text);
     if (problem != null) {
@@ -50,11 +42,6 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
     final last = _lastSend;
     if (last != null && DateTime.now().difference(last).inSeconds < 30) {
       setState(() => _error = const Failure(FailureKind.client, 'Patientez quelques secondes avant un nouvel envoi.'));
-      return;
-    }
-    final provider = ref.read(providerResolverProvider).selected(ServiceCategory.feedback);
-    if (provider.adapter == 'mailto') {
-      await _mailFallback();
       return;
     }
     setState(() {
@@ -73,8 +60,23 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
       });
     } catch (e) {
       if (mounted) {
+        final failure = toFailure(e);
+        final online = ref.read(onlineProvider).valueOrNull ?? true;
+        final displayedError = failure.code == 'connection_error'
+            ? (online
+                ? const Failure(
+                    FailureKind.server,
+                    'Le serveur de retours est injoignable. Votre connexion Internet fonctionne, mais le message n’a pas été envoyé.',
+                    code: 'feedback_server_unreachable',
+                  )
+                : const Failure(
+                    FailureKind.offline,
+                    'Vous êtes hors connexion. Reconnectez-vous puis réessayez.',
+                    code: 'offline',
+                  ))
+            : e;
         setState(() {
-          _error = e;
+          _error = displayedError;
           _sending = false;
         });
       }
@@ -83,8 +85,6 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = ref.watch(providerResolverProvider).selected(ServiceCategory.feedback);
-    final viaMail = provider.adapter == 'mailto';
     return Scaffold(
       appBar: AppBar(title: const Text('Envoyer un retour')),
       body: ListView(
@@ -101,8 +101,7 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
             decoration: InputDecoration(labelText: tr('Votre message'), alignLabelWithHint: true, border: OutlineInputBorder()),
           ),
           const SizedBox(height: 8),
-          if (!viaMail)
-            TextField(
+          TextField(
               controller: _reply,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(labelText: tr('Votre e-mail pour une réponse (facultatif)'), border: OutlineInputBorder()),
@@ -117,21 +116,19 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
           InfoBanner(
             icon: Icons.privacy_tip_outlined,
             tone: BannerTone.info,
-            message: viaMail
-                ? 'Votre application e-mail s\'ouvrira avec le message prérempli. Rien n\'est envoyé tant que vous n\'appuyez pas sur « Envoyer » dans cette application.'
-                : 'Seul le texte ci-dessus (et, si vous le cochez, la version) est envoyé, par le service FormSubmit, à ${AppConfig.feedbackEmail}, avec le titre « ${FeedbackService.subject(DateTime.now())} ». Aucune position ni identifiant n\'est joint.',
+            message: 'Seul le message ci-dessus (et, si vous le cochez, la version et le système) est envoyé au serveur Strasse. L’adresse de destination et les identifiants d’envoi restent côté serveur ; aucune position ni identifiant de compte n’est joint.',
           ),
-          if (_sent) const Padding(padding: EdgeInsets.only(top: 12), child: InfoBanner(icon: Icons.check_circle_outline_rounded, tone: BannerTone.info, message: 'Merci, votre retour a été transmis au service d\'envoi.')),
+          if (_sent) const Padding(padding: EdgeInsets.only(top: 12), child: InfoBanner(icon: Icons.check_circle_outline_rounded, tone: BannerTone.info, message: 'Merci, le service d’envoi a accepté votre retour.')),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: InfoBanner(icon: Icons.error_outline_rounded, tone: BannerTone.error, message: toFailure(_error!).message, action: viaMail ? null : 'Envoyer par e-mail', onAction: viaMail ? null : _mailFallback),
+              child: InfoBanner(icon: Icons.error_outline_rounded, tone: BannerTone.error, message: toFailure(_error!).message),
             ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _sending ? null : _send,
             icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
-            label: Text(viaMail ? 'Ouvrir l\'application e-mail' : 'Envoyer'),
+            label: const Text('Envoyer'),
           ),
         ],
       ),

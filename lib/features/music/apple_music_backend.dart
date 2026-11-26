@@ -42,6 +42,15 @@ class AppleMusicBackend implements MusicBackend {
     }
   }
 
+  /// Restaure l'état de connexion à partir de l'autorisation système persistante, sans nouvel écran de permission.
+  Future<bool> restore() async {
+    if (!Platform.isIOS) return false;
+    final status = await _call<Map<Object?, Object?>>('status');
+    _connected = status['authorized'] == true;
+    _canPlay = status['canPlay'] == true;
+    return _connected;
+  }
+
   @override
   Future<bool> connect() async {
     if (!Platform.isIOS) throw MusicException((await unavailableReason())!);

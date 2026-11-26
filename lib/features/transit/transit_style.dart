@@ -99,7 +99,7 @@ class TransitOverlay {
     final span = b.latSpan > b.lonSpan ? b.latSpan : b.lonSpan;
     if (span > TransitLinesClient.maxSpanHeavy) return const TransitOverlayData(zoomHint: true);
     Object? error;
-    final lines = data.lines.linesIn(b, cancel: cancel).catchError((Object e) {
+    final osmLines = data.lines.linesIn(b, cancel: cancel).catchError((Object e) {
       error = e;
       return <TransitLine>[];
     });
@@ -109,19 +109,86 @@ class TransitOverlay {
             return <TransitStop>[];
           })
         : Future.value(<TransitStop>[]);
-    var l = await lines;
+    // Transitous agrège les flux GTFS ouverts. Il complète Overpass même lorsque certaines relations OSM
+    // existent déjà : une réponse OSM partielle ne doit pas masquer les lignes des opérateurs non cartographiées.
+    final timetableLines = (data.motis != null && span <= maxStopSpan * 3)
+        ? data.motis!.linesIn(b, cancel: cancel).catchError((Object e) {
+            error ??= e;
+            return <TransitLine>[];
+          })
+        : Future.value(<TransitLine>[]);
+    final osm = await osmLines;
     final s = await stops;
-    // Repli : si OpenStreetMap ne donne rien (serveur Overpass en panne, ligne non cartographiée), on dessine les
-    // lignes qui circulent d'après les données horaires (GTFS) du fournisseur de transports.
-    if (l.isEmpty && data.motis != null && span <= maxStopSpan * 3) {
-      try {
-        l = await data.motis!.linesIn(b, cancel: cancel);
-        if (l.isNotEmpty) error = null;
-      } catch (e) {
-        error ??= e;
-      }
+    final gtfs = await timetableLines;
+    final merged = mergeLines(osm, gtfs);
+    return TransitOverlayData(lines: merged, stops: s, error: merged.isEmpty && s.isEmpty ? error : null);
+  }
+
+  /// Fusionne les relations OSM et les tracés issus des voyages GTFS actifs.
+  ///
+  /// OSM garde la priorité pour ses noms, opérateurs et couleurs. Les formes de Transitous complètent
+  /// les relations partielles ; des formes identiques ne sont ajoutées qu'une fois.
+  static List<TransitLine> mergeLines(List<TransitLine> osm, List<TransitLine> gtfs) {
+    final merged = <TransitLine>[...osm];
+    final indexes = <String, List<int>>{};
+
+    String normalize(String? value) => (value ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+    String shapeKey(List<GeoPoint> shape) => shape
+        .map((point) => '${point.lat.toStringAsFixed(5)},${point.lon.toStringAsFixed(5)}')
+        .join(';');
+
+    for (var i = 0; i < merged.length; i++) {
+      final line = merged[i];
+      final route = normalize(line.ref);
+      if (route.isEmpty) continue;
+      final base = '${normalize(line.mode)}|$route';
+      indexes.putIfAbsent(base, () => []).add(i);
     }
-    return TransitOverlayData(lines: l, stops: s, error: l.isEmpty && s.isEmpty ? error : null);
+
+    for (final line in gtfs) {
+      final route = normalize(line.ref);
+      if (route.isEmpty) {
+        merged.add(line);
+        continue;
+      }
+      final base = '${normalize(line.mode)}|$route';
+      final candidates = indexes[base] ?? const <int>[];
+      final agency = normalize(line.operator);
+      int? match;
+      for (final index in candidates) {
+        final existingAgency = normalize(merged[index].operator);
+        if (agency.isEmpty || existingAgency.isEmpty || agency == existingAgency) {
+          match = index;
+          break;
+        }
+      }
+      if (match == null) {
+        final index = merged.length;
+        merged.add(line);
+        indexes.putIfAbsent(base, () => []).add(index);
+        continue;
+      }
+
+      final existing = merged[match];
+      final knownShapes = existing.shapes.map(shapeKey).toSet();
+      final combinedShapes = <List<GeoPoint>>[
+        ...existing.shapes,
+        for (final shape in line.shapes)
+          if (shape.length >= 2 && !knownShapes.contains(shapeKey(shape))) shape,
+      ];
+      merged[match] = TransitLine(
+        id: existing.id,
+        mode: existing.mode,
+        ref: existing.ref,
+        name: existing.name ?? line.name,
+        colorHex: existing.colorHex ?? line.colorHex,
+        from: existing.from ?? line.from,
+        to: existing.to ?? line.to,
+        operator: existing.operator ?? line.operator,
+        shapes: combinedShapes,
+      );
+    }
+    return merged;
   }
 
   static List<MapPolyline> polylines(List<TransitLine> lines) {
