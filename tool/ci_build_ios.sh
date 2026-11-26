@@ -12,14 +12,29 @@ cd "$(dirname "$0")/.."
 mode="${1:-unsigned}"
 bash tool/ci_prepare.sh ios
 ( cd ios && pod install --repo-update )
+
+# Ne jamais compiler avec les URL d'exemple (exemple.org) : seules les variables réellement définies
+# sont transmises. Sans surcharge, l'application utilise les fournisseurs recommandés du catalogue.
+DEFINES=()
+for NAME in STRASSE_ENV STRASSE_API_URL STRASSE_TILES_URL STRASSE_TILES_ATTRIBUTION STRASSE_GLYPHS_URL STRASSE_MAP_FONT STRASSE_VALHALLA_URL STRASSE_GEOCODER_URL STRASSE_OTP_URL STRASSE_OVERPASS_URL STRASSE_SUPABASE_URL STRASSE_SUPABASE_ANON_KEY STRASSE_OPENTRIPMAP_KEY STRASSE_SPOTIFY_CLIENT_ID STRASSE_YOUTUBE_IOS_CLIENT_ID STRASSE_YOUTUBE_SERVER_CLIENT_ID STRASSE_GOOGLE_PLACES_API_KEY STRASSE_CONTACT; do
+  VALUE="${!NAME:-}"
+  if [ -n "$VALUE" ]; then
+    DEFINES+=("--dart-define=$NAME=$VALUE")
+  fi
+done
+
 flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test
 if [ "$mode" = "signed" ]; then
   if command -v xcode-project >/dev/null 2>&1; then xcode-project use-profiles; fi
-  flutter build ipa --release --dart-define-from-file=config/env.example.json ${EXPORT_OPTIONS_PLIST:+--export-options-plist="$EXPORT_OPTIONS_PLIST"}
+  BUILD_ARGS=(flutter build ipa --release "${DEFINES[@]}")
+  if [ -n "${EXPORT_OPTIONS_PLIST:-}" ]; then
+    BUILD_ARGS+=(--export-options-plist "$EXPORT_OPTIONS_PLIST")
+  fi
+  "${BUILD_ARGS[@]}"
   ls -l build/ios/ipa/
 else
-  flutter build ios --release --no-codesign --dart-define-from-file=config/env.example.json
+  flutter build ios --release --no-codesign "${DEFINES[@]}"
   rm -rf build/ios/ipa-unsigned && mkdir -p build/ios/ipa-unsigned/Payload
   cp -R build/ios/iphoneos/Runner.app build/ios/ipa-unsigned/Payload/
   ( cd build/ios/ipa-unsigned && zip -qry Strasse-unsigned.ipa Payload && rm -rf Payload )
