@@ -85,6 +85,7 @@ class ProviderResolver {
         description: 'Adresse fournie à la compilation (config/env.json).',
         baseUrl: fromBuild,
         adapter: _buildTimeAdapter(c),
+        fallbackGroup: ProviderCatalog.recommendedFor(c).fallbackGroup,
         custom: true,
       );
     }
