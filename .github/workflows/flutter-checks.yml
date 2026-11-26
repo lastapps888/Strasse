@@ -1,4 +1,5 @@
 name: Flutter checks
+# Beta 6 validation gate: analyze, test and compile both mobile platforms.
 
 on:
   push:
